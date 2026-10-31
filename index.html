@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Khủng long 3D</title>
+<style>
+:root{--sky:#f1ece2;--card:#3b2a4d;--cardfg:#fff;--edge:#b79ddb;--sub:#d9c9ee;box-sizing:border-box}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--sky:#f1ece2;--card:#2b1d3a;--cardfg:#fff;--edge:#9a82c4;--sub:#cdbce6}}
+:root[data-theme="dark"]{--sky:#f1ece2;--card:#2b1d3a;--cardfg:#fff;--edge:#9a82c4;--sub:#cdbce6}
+html,body{height:100%;margin:0;background:var(--sky);overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;font-family:"Trebuchet MS",system-ui,-apple-system,sans-serif}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 12px) 14px 0;pointer-events:none}
+.card{background:var(--card);color:var(--cardfg);border:2px solid var(--edge);border-radius:12px;padding:6px 14px;text-align:center;min-width:92px}
+#fl{position:fixed;inset:0;background:#e0452e;opacity:0;pointer-events:none}
+.card small{display:block;font-size:11px;color:var(--sub);letter-spacing:.04em}
+.card b{font-size:26px;font-variant-numeric:tabular-nums;font-weight:700}
+#msg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 8vh)}
+#msg .card{padding:16px 24px;max-width:80%}
+#msg h1{margin:0 0 6px;font-size:28px}
+#msg p{margin:0;font-size:15px;color:var(--sub)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="fl"></div>
+<div id="hud">
+  <div class="card"><small>Điểm</small><b id="sc">00000</b></div>
+  <div class="card"><small>Kỷ lục</small><b id="hi">00000</b></div>
+</div>
+<div id="msg"><div class="card"><h1 id="t">Khủng long 3D</h1><p id="s">Chạm màn hình để chạy và nhảy qua xương rồng</p></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+const $=id=>document.getElementById(id);
+if(typeof THREE==='undefined'){$('t').textContent='Không tải được thư viện 3D';return;}
+const pad=n=>String(n).padStart(5,'0');
+const renderer=new THREE.WebGLRenderer({canvas:$('c'),antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+const SKY=0xf1ece2;
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(SKY);
+scene.fog=new THREE.Fog(SKY,30,130);
+const cam=new THREE.PerspectiveCamera(58,1,0.1,300);
+scene.add(new THREE.HemisphereLight(0xffffff,0xc8b08a,0.95));
+const sun=new THREE.DirectionalLight(0xfff4e0,0.65);sun.position.set(6,12,5);scene.add(sun);
+
+const mats={},geos={};
+const M=c=>mats[c]||(mats[c]=new THREE.MeshLambertMaterial({color:c,flatShading:true}));
+const G=(w,h,d)=>geos[w+','+h+','+d]||(geos[w+','+h+','+d]=new THREE.BoxGeometry(w,h,d));
+const bx=(w,h,d,c,x,y,z,p)=>{const m=new THREE.Mesh(G(w,h,d),M(c));m.position.set(x,y,z);p.add(m);return m;};
+const rockGeo=new THREE.DodecahedronGeometry(1,0);
+
+// Mặt đất, đường chạy, núi xa
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400),M(0xe2d0b0));
+ground.rotation.x=-Math.PI/2;ground.position.z=-120;scene.add(ground);
+const lane=new THREE.Mesh(new THREE.PlaneGeometry(9,400),M(0xd9c5a1));
+lane.rotation.x=-Math.PI/2;lane.position.set(0,0.01,-120);scene.add(lane);
+[[-60,-110,50,14],[10,-115,70,10],[70,-108,40,18]].forEach(([x,z,w,h])=>bx(w,h,10,0xcdbfa6,x,h/2,z,scene));
+
+// Xương rồng
+function cactus(h,arms){
+  const g=new THREE.Group(),c=0x5f8f4e;
+  bx(.8,h,.8,c,0,h/2,0,g);
+  if(arms){
+    bx(.9,.5,.5,c,-.7,h*.55,0,g);bx(.5,h*.3,.5,c,-1,h*.55+h*.15,0,g);
+    bx(.9,.5,.5,c,.7,h*.4,0,g);bx(.5,h*.3,.5,c,1,h*.4+h*.15,0,g);
+  }
+  return g;
+}
+
+// Khủng long (nhìn từ phía sau, hướng về -Z)
+const dino=new THREE.Group();scene.add(dino);
+const bodyG=new THREE.Group();dino.add(bodyG);
+const GR=0x4f7a5a,DK=0x3b5f46,BL=0x7fa88a;
+bx(1.4,1.5,2.2,GR,0,2,0,bodyG);
+bx(1.1,.5,1.8,BL,0,1.45,-.1,bodyG);
+const headG=new THREE.Group();headG.position.set(0,2.8,-.7);bodyG.add(headG);
+bx(.9,1.2,.9,GR,0,.3,-.2,headG);
+bx(1.1,.9,1.6,GR,0,.95,-.6,headG);
+bx(.9,.3,1.1,DK,0,.5,-1.05,headG);
+[-1,1].forEach(s=>{
+  bx(.22,.26,.22,0xffffff,s*.58,1.15,-1,headG);
+  bx(.12,.16,.12,0x111111,s*.66,1.15,-1.08,headG);
+});
+function arm(x){const p=new THREE.Group();p.position.set(x,2.2,-.9);bodyG.add(p);bx(.25,.25,.6,DK,0,-.1,-.2,p);return p;}
+const armL=arm(-.8),armR=arm(.8);
+const tail=new THREE.Group();tail.position.set(0,1.9,1.1);bodyG.add(tail);
+bx(.9,.9,1.6,GR,0,0,.8,tail);
+bx(.6,.6,1.5,DK,0,-.1,2.2,tail);
+bx(.35,.35,1.2,DK,0,-.2,3.3,tail);
+for(let i=0;i<3;i++)bx(.3,.4,.3,DK,0,2.9-i*.35,.5+i*.7,bodyG);
+function leg(x){const p=new THREE.Group();p.position.set(x,1.3,.1);dino.add(p);bx(.55,1.3,.7,GR,0,-.65,0,p);bx(.6,.25,1,DK,0,-1.2,-.2,p);return p;}
+const legL=leg(-.45),legR=leg(.45);
+const shadow=new THREE.Mesh(new THREE.CircleGeometry(1,24),new THREE.MeshBasicMaterial({color:0x6b5a40,transparent:true,opacity:.32,fog:false}));
+shadow.rotation.x=-Math.PI/2;shadow.position.y=.03;scene.add(shadow);
+
+// Vật cản
+const obs=[];
+function makeObs(){
+  const r=Math.random();let g,w,h;
+  if(r<.4){h=2.4;g=cactus(h,true);w=2.2;}
+  else if(r<.65){h=3.2;g=cactus(h,true);w=2.4;}
+  else if(r<.85){g=new THREE.Group();const a=cactus(2.2,false),b=cactus(2.8,false);a.position.x=-.8;b.position.x=.8;g.add(a,b);h=2.8;w=2.6;}
+  else{g=new THREE.Group();const m=new THREE.Mesh(rockGeo,M(0x8a7a66));m.scale.set(1.2,.8,1);m.position.y=.7;m.rotation.y=Math.random()*3;g.add(m);h=1.6;w=2.2;}
+  return{g,w,h,d:1.2};
+}
+function spawn(){const o=makeObs();o.g.position.set((Math.random()-.5)*.6,0,-100);scene.add(o.g);obs.push(o);}
+
+// Trang trí hai bên và vệt cát trên đường
+const decor=[];
+function placeDecor(d,far){
+  const side=Math.random()<.5?-1:1;
+  d.position.set(side*(6+Math.random()*28),0,far?-115-Math.random()*10:-110+Math.random()*120);
+}
+for(let i=0;i<38;i++){
+  let d;
+  if(Math.random()<.55){d=new THREE.Mesh(rockGeo,M(0x9a8870));const s=.4+Math.random()*1.1;d.scale.set(s*1.2,s*.8,s);d.rotation.y=Math.random()*3;d.position.y=s*.4;d.userData.y=s*.4;}
+  else{d=cactus(1.6+Math.random()*1.6,Math.random()<.6);}
+  placeDecor(d,false);scene.add(d);decor.push(d);
+}
+const ripples=[];
+for(let i=0;i<30;i++){
+  const m=bx(1+Math.random()*1.2,.04,.4,0xcbb48d,0,.03,0,scene);
+  m.position.set((Math.random()-.5)*8,.03,-Math.random()*110);ripples.push(m);
+}
+
+// Mảnh vỡ khi va chạm
+const FL=.7,parts=[];
+for(let i=0;i<30;i++){const m=new THREE.Mesh(G(.3,.3,.3),M(i%3?0x5f8f4e:0xd9c5a1));m.visible=false;scene.add(m);parts.push({m,vx:0,vy:0,vz:0,life:0,s:1});}
+function burst(x,y,z){for(const p of parts){p.m.visible=true;p.m.position.set(x+(Math.random()-.5),y+Math.random(),z);p.vx=(Math.random()-.5)*14;p.vy=3+Math.random()*10;p.vz=-3+Math.random()*10;p.life=.9+Math.random()*.6;p.s=.6+Math.random()*1.1;}}
+
+// Trạng thái game
+let state='ready',t=0,runT=0,dist=0,score=0,speed=20,py=0,vy=0,jumpBuf=0,gap=40,overT=0,hi=0,shake=0,last=performance.now(),camYaw=0,jumpDir=1,air=0,land=0,baseFov=58,punch=0,dvy=0,dvz=0,hitObs=null;
+try{hi=+localStorage.getItem('dino3d_hi')||0;}catch(e){}
+$('hi').textContent=pad(hi);
+const JUMP=23,GRAV=52,msg=$('msg');
+
+function reset(){
+  obs.forEach(o=>scene.remove(o.g));obs.length=0;
+  dist=0;score=0;speed=20;py=0;vy=0;gap=40;jumpBuf=0;
+  dino.rotation.set(0,0,0);dino.position.set(0,0,0);dino.scale.set(1,1,1);hitObs=null;
+  parts.forEach(p=>{p.life=0;p.m.visible=false;});
+  $('sc').textContent=pad(0);msg.style.display='none';state='play';
+}
+function die(o){
+  state='over';overT=0;shake=.7;punch=1;hitObs=o||null;dvy=10;dvz=9;
+  burst(o?o.g.position.x:0,1.6,o?o.g.position.z:-1.5);
+  const fl=$('fl');fl.style.transition='none';fl.style.opacity='.5';void fl.offsetWidth;fl.style.transition='opacity .6s';fl.style.opacity='0';
+  if(score>hi){hi=score;$('hi').textContent=pad(hi);try{localStorage.setItem('dino3d_hi',hi);}catch(e){}}
+  $('t').textContent='Game over';
+  $('s').textContent='Điểm '+score+'. Chạm để chơi lại';
+  setTimeout(()=>{if(state==='over')msg.style.display='flex';},700);
+}
+function act(){
+  if(state==='ready'){state='play';msg.style.display='none';}
+  else if(state==='over'){if(overT>.5)reset();else return;}
+  jumpBuf=.14;
+}
+addEventListener('pointerdown',e=>{e.preventDefault();act();},{passive:false});
+addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'||e.code==='Enter'){e.preventDefault();if(!e.repeat)act();}});
+
+function resize(){
+  const w=innerWidth,h=innerHeight,a=w/h;
+  renderer.setSize(w,h,false);cam.aspect=a;
+  baseFov=a<.8?70:a<1.3?62:54;cam.fov=baseFov;cam.updateProjectionMatrix();
+}
+addEventListener('resize',resize);resize();
+
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min((now-last)/1000,.05);last=now;t+=dt;
+  let mv=0;
+  if(state==='play'){
+    score=Math.floor(dist*.4);
+    speed=20+Math.min(28,score*.02);
+    mv=speed*dt;dist+=mv;
+    gap-=mv;if(gap<=0){spawn();gap=speed*(1.1+Math.random())+6;}
+    if(jumpBuf>0){jumpBuf-=dt;if(py<=0){vy=JUMP;py=.01;jumpBuf=0;jumpDir=-jumpDir;}}
+    if(py>0){vy-=GRAV*dt;py+=vy*dt;if(py<=0){py=0;vy=0;land=.18;shake=Math.max(shake,.07);}}
+    for(const o of obs){
+      o.g.position.z+=mv;
+      const z=o.g.position.z;
+      if(z+o.d/2>-1.5&&z-o.d/2<1&&Math.abs(o.g.position.x)<o.w*.35+.5&&py<o.h*.85){die(o);break;}
+    }
+    for(let i=obs.length-1;i>=0;i--)if(obs[i].g.position.z>12){scene.remove(obs[i].g);obs.splice(i,1);}
+    $('sc').textContent=pad(score);
+  }
+  if(state==='over')overT+=dt;
+  const ts=state==='over'?(overT<.08?0:Math.min(1,.25+(overT-.08)*1.2)):1,sd=dt*ts;
+  if(mv>0){
+    for(const d of decor){d.position.z+=mv;if(d.position.z>12)placeDecor(d,true);}
+    for(const r of ripples){r.position.z+=mv;if(r.position.z>10){r.position.z=-110;r.position.x=(Math.random()-.5)*8;}}
+  }
+  for(const p of parts){
+    if(p.life<=0)continue;
+    p.life-=sd;p.vy-=30*sd;
+    const q=p.m.position;q.x+=p.vx*sd;q.y+=p.vy*sd;q.z+=p.vz*sd;
+    if(q.y<.15){q.y=.15;p.vy*=-.3;p.vx*=.7;p.vz*=.7;}
+    p.m.rotation.x+=sd*8;p.m.rotation.z+=sd*6;
+    p.m.scale.setScalar(Math.max(.001,Math.min(1,p.life/.4)*p.s));
+    if(p.life<=0)p.m.visible=false;
+  }
+  // Hoạt ảnh khủng long
+  if(state==='over'){
+    dvy-=40*sd;dino.position.y+=dvy*sd;dino.position.z+=dvz*sd;
+    if(dvy<0&&dino.position.y<FL){dino.position.y=FL;dvy=dvy<-4?-dvy*.3:0;dvz*=.55;}
+    if(dino.position.y===FL&&dvy===0)dvz*=Math.pow(.02,sd);
+    dino.rotation.x+=(1.45-dino.rotation.x)*Math.min(1,sd*5);
+    dino.rotation.z+=(.35-dino.rotation.z)*Math.min(1,sd*4);
+    const fl=Math.max(0,1-overT*1.5);
+    legL.rotation.x=Math.sin(overT*22)*.9*fl-.3;legR.rotation.x=Math.sin(overT*22+2)*.9*fl-.3;
+    armL.rotation.x=armR.rotation.x=1.2*fl+.2;
+    headG.rotation.x=.3;
+    dino.scale.set(1,1,1);
+    if(hitObs)hitObs.g.rotation.x+=(-1.3-hitObs.g.rotation.x)*Math.min(1,sd*5);
+  }else{
+    runT+=dt*(state==='play'?9+speed*.25:0);
+    air+=((py>0?1:0)-air)*Math.min(1,dt*14);
+    land=Math.max(0,land-dt);
+    const sq=land/.18,st=py>0?.08*Math.min(1,Math.abs(vy)/JUMP):0;
+    dino.scale.set(1+.1*sq-st*.5,1-.15*sq+st,1+.1*sq-st*.5);
+    dino.position.y=py;
+    dino.rotation.x=Math.max(-.3,Math.min(.3,vy*.012));
+    const s=Math.sin(runT),k=1-air,L=(a,b)=>a+(b-a)*air;
+    legL.rotation.x=L(s*.9,-.9);legR.rotation.x=L(-s*.9,.6);
+    armL.rotation.x=L(-s*.9,1);armR.rotation.x=L(s*.9,1);
+    headG.rotation.x=L(Math.sin(runT*2)*.07,.28);
+    bodyG.position.y=state==='play'&&py<=0?Math.abs(s)*.14:Math.sin(t*3)*.04;
+    bodyG.rotation.z=s*.06*k;bodyG.rotation.y=s*.05*k;
+    tail.rotation.y=Math.sin(runT*.8+(state==='ready'?t*2:0))*.4*k;
+    tail.rotation.x=L(Math.sin(runT*2)*.06,-.35);
+  }
+  const sh=1/(1+dino.position.y*.25);
+  shadow.position.z=dino.position.z;shadow.position.x=-.5;shadow.scale.set(1.5*sh,2.4*sh,1);shadow.material.opacity=.32*sh;
+  // Camera góc nhìn thứ ba
+  camYaw+=((state==='play'&&py>0?.16:0)-camYaw)*Math.min(1,dt*4);
+  const cj=Math.abs(camYaw)/.16,ca=Math.cos(camYaw),sa=Math.sin(camYaw),dx=3.2,dz=11;
+  cam.position.set(dx*ca+dz*sa,4.6+py*.3+cj*.3,-dx*sa+dz*ca);
+  if(shake>0){shake-=dt;cam.position.x+=(Math.random()-.5)*shake*1.5;cam.position.y+=(Math.random()-.5)*shake;}
+  cam.lookAt(-.3*(1-cj*.3),1.9+py*.3,-6*(1-cj*.3));
+  cam.rotateZ(camYaw*.06);
+  punch=Math.max(0,punch-dt*2.5);
+  const f=baseFov+cj*2-punch*7;if(Math.abs(cam.fov-f)>.05){cam.fov=f;cam.updateProjectionMatrix();}
+  renderer.render(scene,cam);
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
