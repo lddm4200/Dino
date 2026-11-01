@@ -26,13 +26,25 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #soundBtn.muted .icon-off{display:inline}
 #soundBtn .slash{position:absolute;width:3px;height:32px;background:#e0452e;border-radius:2px;transform:rotate(45deg);transition:opacity .25s;opacity:0}
 #soundBtn.muted .slash{opacity:1}
+
+/* Hiệu ứng chuyển cảnh không gian */
+#warpFlash{position:fixed;inset:0;background:radial-gradient(circle at center,#ffffff 0%,#00e5ff 35%,#7928ca 75%,#000000 100%);opacity:0;pointer-events:none;transition:opacity .8s ease-out;z-index:90}
+#spaceBanner{position:fixed;top:15%;left:50%;transform:translateX(-50%) scale(0.85);background:rgba(12,8,28,0.92);border:2px solid #00e5ff;border-radius:16px;padding:12px 24px;text-align:center;color:#fff;box-shadow:0 0 30px rgba(0,229,255,0.65),inset 0 0 15px rgba(121,40,202,0.4);opacity:0;pointer-events:none;transition:opacity .5s ease,transform .5s cubic-bezier(.175,.885,.32,1.275);z-index:95}
+#spaceBanner.show{opacity:1;transform:translateX(-50%) scale(1)}
+#spaceBanner .banner-title{font-size:22px;font-weight:800;letter-spacing:1px;background:linear-gradient(90deg,#00e5ff,#ff007f);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#spaceBanner .banner-sub{font-size:13px;color:#d9c9ee;margin-top:4px;letter-spacing:.04em}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="fl"></div>
+<div id="warpFlash"></div>
+<div id="spaceBanner">
+  <div class="banner-title">TIẾN VÀO KHÔNG GIAN THIÊN HÀ!</div>
+  <div class="banner-sub">Né các chướng ngại vật vũ trụ!</div>
+</div>
 <div id="hud">
-  <div class="card"><small>Điểm</small><b id="sc">00000</b></div>
+  <div class="card" id="scoreCard" style="pointer-events:auto;cursor:pointer" title="Nhấp để thử nghiệm mốc 50.000 điểm"><small>Điểm</small><b id="sc">00000</b></div>
   <div class="card"><small>Kỷ lục</small><b id="hi">00000</b></div>
 </div>
 <div id="msg"><div class="card"><h1 id="t">Khủng long 3D</h1><p id="s">Chạm màn hình để chạy và nhảy qua chướng ngại vật</p></div></div>
@@ -107,6 +119,28 @@ function playScoreSound(){
   e2.gain.setValueAtTime(0,now);e2.gain.setValueAtTime(0.15,now+0.08);e2.gain.exponentialRampToValueAtTime(0.001,now+0.2);
   o2.connect(e2);e2.connect(sfxGain);o2.start(now);o2.stop(now+0.22);
 }
+// Âm thanh bước nhảy siêu không gian (Hyperspace Warp Jump)
+function playWarpSound(){
+  if(!audioCtx||muted)return;
+  var now=audioCtx.currentTime;
+  var sub=audioCtx.createOscillator(),subGain=audioCtx.createGain();
+  sub.type='sine';sub.frequency.setValueAtTime(340,now);sub.frequency.exponentialRampToValueAtTime(45,now+1.2);
+  subGain.gain.setValueAtTime(0.5,now);subGain.gain.exponentialRampToValueAtTime(0.001,now+1.4);
+  sub.connect(subGain);subGain.connect(sfxGain);sub.start(now);sub.stop(now+1.4);
+
+  var sweep=audioCtx.createOscillator(),sweepGain=audioCtx.createGain();
+  sweep.type='sawtooth';sweep.frequency.setValueAtTime(220,now);sweep.frequency.exponentialRampToValueAtTime(1800,now+0.9);
+  sweepGain.gain.setValueAtTime(0.18,now);sweepGain.gain.exponentialRampToValueAtTime(0.001,now+1.0);
+  sweep.connect(sweepGain);sweepGain.connect(sfxGain);sweep.start(now);sweep.stop(now+1.0);
+
+  [659.25,880,1174.66,1567.98].forEach(function(freq,i){
+    var o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type='sine';o.frequency.value=freq;
+    var t=now+0.6+i*0.1;
+    g.gain.setValueAtTime(0.2,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.8);
+    o.connect(g);g.connect(sfxGain);o.start(t);o.stop(t+0.8);
+  });
+}
 function toggleSound(){
   initAudio();muted=!muted;var btn=document.getElementById('soundBtn');
   if(muted){btn.classList.add('muted');btn.title='Bật âm thanh';stopBgm();if(bgmGain)bgmGain.gain.value=0;if(sfxGain)sfxGain.gain.value=0;}
@@ -123,14 +157,18 @@ const pad=n=>String(n).padStart(5,'0');
 const isMobile=/Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)||(window.innerWidth<800);
 const renderer=new THREE.WebGLRenderer({
   canvas:$('c'),
-  antialias:!isMobile, // Tắt khử răng cưa nặng trên điện thoại để tiết kiệm 70% tải GPU
+  antialias:!isMobile,
   powerPreference:'high-performance',
   precision:isMobile?'mediump':'highp',
   stencil:false
 });
-// Khóa DPR ở 1.0 trên mobile yếu để triệt tiêu tình trạng quá tải render
 const maxDpr=isMobile?1.0:1.5;
 renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,maxDpr));
+
+// MỐC 10.000 ĐIỂM TIẾN VÀO KHÔNG GIAN
+const SPACE_THRESHOLD=10000;
+let inSpace=false;
+let spaceT=0; // 0 (Trái Đất) -> 1 (Thiên Hà Vũ Trụ)
 
 // === CHU KỲ NGÀY ĐÊM (chậm rãi, tự nhiên) ===
 const DAY_CYCLE=2000;
@@ -158,14 +196,14 @@ function getTimeOfDay(score){
 function lerpColor(c1,c2,t){
   const r1=(c1>>16)&0xFF,g1=(c1>>8)&0xFF,b1=c1&0xFF;
   const r2=(c2>>16)&0xFF,g2=(c2>>8)&0xFF,b2=c2&0xFF;
-  return((r1+(r2-r1)*t)<<16)|((g1+(g2-g1)*t)<<8)|(b1+(b2-b1)*t);
+  return((r1+Math.round((r2-r1)*t))<<16)|((g1+Math.round((g2-g1)*t))<<8)|(b1+Math.round((b2-b1)*t));
 }
 function lerpVal(a,b,t){return a+(b-a)*t;}
 
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x7ec0ee);
 scene.fog=new THREE.Fog(0xc2e2f5,30,130);
-const cam=new THREE.PerspectiveCamera(58,1,0.1,300);
+const cam=new THREE.PerspectiveCamera(58,1,0.8,300);
 
 const hemiLight=new THREE.HemisphereLight(0xffffff,0x8FBC6B,1.0);
 scene.add(hemiLight);
@@ -185,47 +223,56 @@ const bushGeo2=new THREE.DodecahedronGeometry(0.6,0);
 const bushSmallGeo=new THREE.DodecahedronGeometry(0.35,0);
 const flowerGeo=new THREE.SphereGeometry(0.12,5,4);
 
+// Geometries vật cản không gian
+const meteorGeo1=new THREE.DodecahedronGeometry(1.4,0);
+const crystalGeo=new THREE.CylinderGeometry(0.2,0.6,2.5,5);
+
 // === MẶT ĐẤT CẢI TIẾN ===
 const groundMat=new THREE.MeshLambertMaterial({color:0x8FBC6B,flatShading:true});
 const ground=new THREE.Mesh(new THREE.PlaneGeometry(400,400),groundMat);
 ground.rotation.x=-Math.PI/2;ground.position.z=-120;scene.add(ground);
 
-// Đường chạy với viền
+// Đường chạy với viền (sẽ biến thành đường cao tốc Neon không gian)
 const laneMat=new THREE.MeshLambertMaterial({color:0xB8A87A,flatShading:true});
 const lane=new THREE.Mesh(new THREE.PlaneGeometry(8,400),laneMat);
-lane.rotation.x=-Math.PI/2;lane.position.set(0,0.01,-120);scene.add(lane);
+lane.rotation.x=-Math.PI/2;lane.position.set(0,0.02,-120);scene.add(lane);
 
-// Viền đường (2 sọc trắng)
+// Viền đường (Neon Cyan trong không gian)
 const edgeMat=new THREE.MeshLambertMaterial({color:0xE8DCC0,flatShading:true});
 const edgeL=new THREE.Mesh(new THREE.PlaneGeometry(0.3,400),edgeMat);
-edgeL.rotation.x=-Math.PI/2;edgeL.position.set(-4.15,0.02,-120);scene.add(edgeL);
+edgeL.rotation.x=-Math.PI/2;edgeL.position.set(-4.15,0.04,-120);scene.add(edgeL);
 const edgeR=new THREE.Mesh(new THREE.PlaneGeometry(0.3,400),edgeMat);
-edgeR.rotation.x=-Math.PI/2;edgeR.position.set(4.15,0.02,-120);scene.add(edgeR);
+edgeR.rotation.x=-Math.PI/2;edgeR.position.set(4.15,0.04,-120);scene.add(edgeR);
 
-// Vạch giữa đường (dash - tối ưu số lượng)
+// Vạch giữa đường (Neon Magenta trong không gian)
 const dashMat=new THREE.MeshLambertMaterial({color:0xD0C098,flatShading:true});
 const dashes=[];
 const dashCount=isMobile?10:18;
 const dashSpacing=12;
 for(let i=0;i<dashCount;i++){
   const d=new THREE.Mesh(new THREE.PlaneGeometry(0.25,3.5),dashMat);
-  d.rotation.x=-Math.PI/2;d.position.set(0,0.02,-i*dashSpacing);scene.add(d);dashes.push(d);
+  d.rotation.x=-Math.PI/2;d.position.set(0,0.05,-i*dashSpacing);scene.add(d);dashes.push(d);
 }
 
-// Núi xa (dùng chung 1 material để giảm draw call)
+// Núi xa (chìm xuống khi vào không gian)
 const mountainMat=new THREE.MeshLambertMaterial({color:0x6B9E68,flatShading:true});
 const mountains=[];
 [[-70,-115,55,16],[-20,-120,40,22],[30,-118,50,12],[80,-112,45,20],[-50,-125,60,18],[60,-122,35,14]].forEach(([x,z,w,h])=>{
   const mt=new THREE.Mesh(G(w,h,12),mountainMat);
-  mt.position.set(x,h/2,z);scene.add(mt);
+  mt.position.set(x,h/2,z);
+  mt.userData.baseH=h/2;
+  scene.add(mt);
   mountains.push(mt);
 });
 // Đỉnh núi tuyết
+const snowCaps=[];
 [[-20,-120,15,4,20],[80,-112,12,3,18],[-50,-125,18,3.5,16.5]].forEach(([x,z,w,h,baseH])=>{
-  bx(w,h,8,0xE8E8E0,x,baseH+h/2,z,scene);
+  const sc=bx(w,h,8,0xE8E8E0,x,baseH+h/2,z,scene);
+  sc.userData.baseH=baseH+h/2;
+  snowCaps.push(sc);
 });
 
-// === MÂY TRÔI (nhẹ, dùng chung geometry và material) ===
+// === MÂY TRÔI (nhẹ, biến mất khi vào không gian) ===
 const clouds=[];
 const cloudGeo=new THREE.DodecahedronGeometry(1.5,0);
 const cloudMat=new THREE.MeshLambertMaterial({color:0xFFFFFF,transparent:true,opacity:0.85});
@@ -245,26 +292,26 @@ for(let i=0;i<cloudCount;i++){
   scene.add(g);clouds.push(g);
 }
 
-// === SAO ĐÊM ===
+// === SAO ĐÊM & VŨ TRỤ (NẰM Ở TẬN HẬU CẢNH THIÊN THỂ TRÁNH NHẤP NHÁY VỚI VẬT THỂ) ===
 const starsGeo=new THREE.BufferGeometry();
 const starPositions=[];
-const starCount=isMobile?70:150;
+const starCount=isMobile?120:250;
 for(let i=0;i<starCount;i++){
-  starPositions.push((Math.random()-0.5)*320,25+Math.random()*60,-60-Math.random()*80);
+  starPositions.push((Math.random()-0.5)*360,10+Math.random()*85,-175-Math.random()*20);
 }
 starsGeo.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));
-const starsMat=new THREE.PointsMaterial({color:0xFFFFFF,size:isMobile?0.45:0.3,transparent:true,opacity:0});
+const starsMat=new THREE.PointsMaterial({color:0xFFFFFF,size:isMobile?0.7:0.55,transparent:true,opacity:0,depthWrite:false,fog:false});
 const stars=new THREE.Points(starsGeo,starsMat);
 scene.add(stars);
 
-// === MẶT TRỜI / MẶT TRĂNG 3D (nằm phía sau rặng núi ở z = -190) ===
+// === MẶT TRỜI / MẶT TRĂNG 3D ===
 const sunSphere=new THREE.Mesh(
   new THREE.SphereGeometry(7,10,8),
   new THREE.MeshBasicMaterial({color:0xFFEE55,fog:false})
 );
 const sunGlow=new THREE.Mesh(
   new THREE.SphereGeometry(12,10,8),
-  new THREE.MeshBasicMaterial({color:0xFFAA22,transparent:true,opacity:0.22,fog:false})
+  new THREE.MeshBasicMaterial({color:0xFFAA22,transparent:true,opacity:0.22,fog:false,depthWrite:false})
 );
 sunSphere.add(sunGlow);
 sunSphere.position.set(0,80,-190);
@@ -276,12 +323,57 @@ const moonSphere=new THREE.Mesh(
 );
 const moonGlow=new THREE.Mesh(
   new THREE.SphereGeometry(9.5,10,8),
-  new THREE.MeshBasicMaterial({color:0x99BBFF,transparent:true,opacity:0.2,fog:false})
+  new THREE.MeshBasicMaterial({color:0x99BBFF,transparent:true,opacity:0.2,fog:false,depthWrite:false})
 );
 moonSphere.add(moonGlow);
 moonSphere.position.set(0,-50,-190);
 moonSphere.visible=false;
 scene.add(moonSphere);
+
+// === THIÊN THỂ KHÔNG GIAN (HIỂN THỊ TRONG BỐI CẢNH THIÊN HÀ) ===
+const spaceGroup=new THREE.Group();
+scene.add(spaceGroup);
+spaceGroup.visible=false;
+
+// 1. Hành tinh khí khổng lồ có vành đai (Saturn-like)
+const planetSphere=new THREE.Mesh(
+  new THREE.SphereGeometry(18,12,10),
+  new THREE.MeshLambertMaterial({color:0x9B59B6,flatShading:true})
+);
+planetSphere.position.set(65,42,-180);
+spaceGroup.add(planetSphere);
+
+const planetRing=new THREE.Mesh(
+  new THREE.RingGeometry(22,35,22),
+  new THREE.MeshBasicMaterial({color:0xD8B4F8,side:THREE.DoubleSide,transparent:true,opacity:0.75,fog:false,depthWrite:false})
+);
+planetRing.rotation.x=1.2;
+planetRing.rotation.y=0.35;
+planetRing.position.set(65,42,-180);
+spaceGroup.add(planetRing);
+
+// 2. Trái Đất từ xa (blue marble)
+const earthSphere=new THREE.Mesh(
+  new THREE.SphereGeometry(7,10,8),
+  new THREE.MeshLambertMaterial({color:0x1E90FF,flatShading:true})
+);
+earthSphere.position.set(-62,32,-175);
+spaceGroup.add(earthSphere);
+
+// Mặt trăng nhỏ quanh Trái Đất
+const moonSmall=new THREE.Mesh(
+  new THREE.SphereGeometry(1.6,6,5),
+  new THREE.MeshLambertMaterial({color:0xE0E0E0,flatShading:true})
+);
+moonSmall.position.set(-51,36,-173);
+spaceGroup.add(moonSmall);
+
+// 3. Tinh vân vũ trụ rực rỡ (Nebula clouds - depthWrite=false tránh lỗi giật/nhấp nháy đa giác khi xoay)
+const nebGeo=new THREE.DodecahedronGeometry(24,0);
+const neb1=new THREE.Mesh(nebGeo,new THREE.MeshBasicMaterial({color:0x8A2BE2,transparent:true,opacity:0.25,fog:false,depthWrite:false}));
+neb1.position.set(30,50,-190);neb1.scale.set(1.6,0.8,1);spaceGroup.add(neb1);
+const neb2=new THREE.Mesh(nebGeo,new THREE.MeshBasicMaterial({color:0x00CED1,transparent:true,opacity:0.2,fog:false,depthWrite:false}));
+neb2.position.set(-40,25,-190);neb2.scale.set(1.4,0.7,1);spaceGroup.add(neb2);
 
 // Xương rồng (cactus)
 function cactus(h,arms){
@@ -293,8 +385,6 @@ function cactus(h,arms){
   }
   return g;
 }
-
-// === VẬT CẢN (TỐI ƯU HÓA HÌNH KHỐI) ===
 
 // 1. Xương khủng long
 function fossil(){
@@ -322,7 +412,7 @@ function log(){
   return g;
 }
 
-// 3. Tổ trứng khủng long (dùng chung eggGeo)
+// 3. Tổ trứng khủng long
 function eggNest(){
   const g=new THREE.Group();
   const nestC=0x8B7355;
@@ -375,7 +465,7 @@ function pterodactyl(){
   return g;
 }
 
-// 6. Bụi gai (dùng chung bushGeo)
+// 6. Bụi gai
 function thornBush(){
   const g=new THREE.Group(),tc=0x3D6B35,dc=0x2D5525;
   const bush=new THREE.Mesh(bushGeo1,M(tc));
@@ -400,9 +490,72 @@ function stonePillar(){
   return g;
 }
 
-// === TẠO VẬT CẢN ===
+// === CÁC VẬT CẢN KHÔNG GIAN (SPAWN TRONG THIÊN HÀ) ===
+function makeSpaceObs(){
+  const r=Math.random();
+  let g,w,h;
+  if(r<0.38){
+    // 1. Thiên thạch rực lửa (Burning Meteorite) - Sáng rực rỡ với nham thạch và đuôi lửa
+    g=new THREE.Group();
+    const rock=new THREE.Mesh(meteorGeo1,M(0x6D432E)); // Lớp vỏ đá núi lửa ấm, không bị tối đen
+    rock.scale.set(1.2,1.1,1.1);
+    rock.rotation.set(Math.random()*2,Math.random()*2,0);
+    g.add(rock);
+    bx(1.0,0.5,1.0,0xFF2200,0,0.2,-0.4,g); // Dung nham đỏ rực
+    bx(0.7,0.4,0.7,0xFF8800,0.3,0.1,0.2,g); // Vệt cam nóng
+    bx(0.4,0.4,0.4,0xFFEE00,-0.2,0.3,0.1,g); // Điểm sáng vàng rực
+    // Đuôi lửa plasma sáng rực
+    const fire=bx(0.9,0.9,2.5,0xFF3300,0,0,1.6,g);
+    fire.scale.set(1,0.7,1);
+    bx(0.6,0.6,2.0,0xFFAA00,0,0,1.8,g);
+    bx(0.35,0.35,1.3,0xFFFF66,0,0,2.0,g); // Lõi lửa trắng vàng rực rỡ
+    h=2.4;w=2.4;
+  }else if(r<0.64){
+    // 2. Cụm tinh thể pha lê vũ trụ (Cosmic Crystal Spire) - Phát sáng Neon Cyan & Magenta
+    g=new THREE.Group();
+    const cr1=new THREE.Mesh(crystalGeo,M(0x00FFFF)); // Neon Cyan
+    cr1.position.set(-0.4,1.2,0);cr1.rotation.z=-0.15;g.add(cr1);
+    const cr2=new THREE.Mesh(crystalGeo,M(0xFF00C8)); // Neon Magenta
+    cr2.position.set(0.4,1.4,0.2);cr2.rotation.z=0.2;cr2.scale.set(1.2,1.2,1.2);g.add(cr2);
+    const cr3=new THREE.Mesh(crystalGeo,M(0xFFFFFF)); // Lõi pha lê trắng tinh tú rực rỡ
+    cr3.position.set(0,1.6,-0.1);cr3.scale.set(0.6,1.1,0.6);g.add(cr3);
+    const crBase=new THREE.Mesh(bushGeo1,M(0x48326D)); // Đá thạch anh tím
+    crBase.position.y=0.4;g.add(crBase);
+    bx(0.4,0.2,0.4,0x00FFFF,0.5,0.3,0.3,g);
+    bx(0.4,0.2,0.4,0xFF00AA,-0.5,0.3,-0.3,g);
+    h=2.8;w=2.4;
+  }else if(r<0.82){
+    // 3. Tàu UFO Người ngoài hành tinh (Alien Flying Saucer) - Bạc sáng bóng kèm đèn Neon và chùm tia bắt cóc
+    g=new THREE.Group();
+    bx(2.6,0.35,2.6,0xA8C4E8,0,0,0,g); // Đĩa bay hợp kim titan bạc sáng bóng
+    bx(2.9,0.12,2.9,0x39FF14,0,0,0,g); // Vành đèn Neon xanh lá huỳnh quang cực sáng
+    bx(1.1,0.6,1.1,0x00FFFF,0,0.4,0,g); // Buồng lái phát sáng Cyan
+    bx(0.5,0.4,0.5,0xFFFFFF,0,0.5,0,g); // Điểm sáng trắng trung tâm
+    const beam=bx(1.6,1.8,1.6,0x00FFAA,0,-1.0,0,g); // Chùm tia năng lượng bắt cóc
+    beam.material=new THREE.MeshBasicMaterial({color:0x00FFAA,transparent:true,opacity:0.45,depthWrite:false});
+    g.userData.flying=true;
+    g.position.y=2.0+Math.random()*1.0;
+    h=2.8;w=3.2;
+  }else{
+    // 4. Mảnh vỡ vệ tinh trạm không gian (Space Satellite) - Vỏ trắng phản quang & tấm pin xanh rực
+    g=new THREE.Group();
+    bx(1.1,1.2,1.1,0xFFFFFF,0,0.7,0,g); // Thân trạm bọc giáp trắng sáng
+    bx(0.9,0.5,0.9,0xFFD700,0,0.7,0.15,g); // Lớp cách nhiệt mạ vàng
+    bx(1.9,0.08,0.8,0x00A6FF,-1.5,0.7,0,g); // Tấm pin năng lượng mặt trời xanh rực
+    bx(1.9,0.08,0.8,0x00A6FF,1.5,0.7,0,g);
+    bx(0.3,0.3,0.3,0xFF0033,0,1.45,0,g); // Đèn cảnh báo nhấp nháy đỏ rực
+    bx(0.6,0.1,0.6,0xFFD700,0,1.55,-0.3,g); // Ăng-ten chảo vàng
+    h=2.2;w=4.0;
+  }
+  return {g,w,h,d:1.4};
+}
+
+// === TẠO VẬT CẢN TỔNG QUÁT ===
 const obs=[];
 function makeObs(){
+  if(inSpace&&spaceT>0.4){
+    return makeSpaceObs();
+  }
   const r=Math.random();let g,w,h;
   if(r<.2){h=2.4;g=cactus(h,true);w=2.2;}
   else if(r<.3){h=3.2;g=cactus(h,true);w=2.4;}
@@ -441,14 +594,35 @@ bx(.35,.35,1.2,DK,0,-.2,3.3,tail);
 for(let i=0;i<3;i++)bx(.3,.4,.3,DK,0,2.9-i*.35,.5+i*.7,bodyG);
 function leg(x){const p=new THREE.Group();p.position.set(x,1.3,.1);dino.add(p);bx(.55,1.3,.7,GR,0,-.65,0,p);bx(.6,.25,1,DK,0,-1.2,-.2,p);return p;}
 const legL=leg(-.45),legR=leg(.45);
-const shadow=new THREE.Mesh(new THREE.CircleGeometry(1,20),new THREE.MeshBasicMaterial({color:0x6b5a40,transparent:true,opacity:.32,fog:false}));
-shadow.rotation.x=-Math.PI/2;shadow.position.y=.03;scene.add(shadow);
+const shadow=new THREE.Mesh(new THREE.CircleGeometry(1,20),new THREE.MeshBasicMaterial({color:0x6b5a40,transparent:true,opacity:.32,fog:false,depthWrite:false}));
+shadow.rotation.x=-Math.PI/2;shadow.position.y=.07;scene.add(shadow);
+
+// === MŨ PHI HÀNH GIA & BÌNH DƯỠNG KHÍ CỦA KHỦNG LONG KHI VÀO VŨ TRỤ ===
+const astroHelmet=new THREE.Group();
+const helmetGlass=new THREE.Mesh(
+  new THREE.SphereGeometry(1.25,10,8),
+  new THREE.MeshLambertMaterial({color:0x70E0FF,transparent:true,opacity:0.45,depthWrite:false})
+);
+helmetGlass.position.set(0,0.85,-0.6);
+astroHelmet.add(helmetGlass);
+bx(1.7,0.22,1.9,0xD4AF37,0,0.2,-0.6,astroHelmet); // Vành vàng
+headG.add(astroHelmet);
+astroHelmet.visible=false;
+
+const oxyTank1=bx(0.35,1.1,0.35,0xE0E0E0,-0.4,2.2,0.95,bodyG);
+const oxyTank2=bx(0.35,1.1,0.35,0xE0E0E0,0.4,2.2,0.95,bodyG);
+bx(0.18,0.15,0.18,0x00E5FF,-0.4,2.8,0.95,bodyG);
+bx(0.18,0.15,0.18,0x00E5FF,0.4,2.8,0.95,bodyG);
+const oxyGroup=[oxyTank1,oxyTank2,bodyG.children[bodyG.children.length-1],bodyG.children[bodyG.children.length-2]];
+oxyGroup.forEach(m=>{m.visible=false;});
 
 // === TRANG TRÍ (TỐI ƯU HÓA SỐ LƯỢNG MESH CHO MOBILE) ===
 const decor=[];
 function placeDecor(d,far){
   const side=Math.random()<.5?-1:1;
-  d.position.set(side*(6+Math.random()*28),d.userData.y||0,far?-115-Math.random()*10:-110+Math.random()*120);
+  const dy=(d.userData.y||0)-spaceT*25;
+  d.position.set(side*(6+Math.random()*28),dy,far?-115-Math.random()*10:-110+Math.random()*120);
+  d.visible=(spaceT<0.95);
 }
 
 function deadTree(){
@@ -522,6 +696,25 @@ function reset(){
   dist=0;score=0;lastScoreColor=-1;speed=20;py=0;vy=0;gap=40;jumpBuf=0;
   dino.rotation.set(0,0,0);dino.position.set(0,0,0);dino.scale.set(1,1,1);hitObs=null;
   for(let i=0;i<parts.length;i++){parts[i].life=0;parts[i].m.visible=false;}
+
+  // Reset trạng thái không gian về mặt đất ban đầu
+  inSpace=false;
+  spaceT=0;
+  scene.fog.near=30;
+  scene.fog.far=130;
+  hemiLight.color.setHex(0xffffff);
+  moonLight.color.setHex(0x98C0FF);
+  astroHelmet.visible=false;
+  oxyGroup.forEach(m=>{m.visible=false;});
+  spaceGroup.visible=false;
+  sunSphere.scale.set(1,1,1);
+  moonSphere.scale.set(1,1,1);
+  for(let i=0;i<mountains.length;i++){mountains[i].visible=true;mountains[i].position.y=mountains[i].userData.baseH;}
+  for(let i=0;i<snowCaps.length;i++){snowCaps[i].visible=true;snowCaps[i].position.y=snowCaps[i].userData.baseH;}
+  for(let i=0;i<decor.length;i++){decor[i].visible=true;decor[i].position.y=decor[i].userData.y||0;}
+  for(let i=0;i<ripples.length;i++){ripples[i].visible=true;ripples[i].position.y=0.03;}
+  for(let i=0;i<clouds.length;i++){clouds[i].visible=true;}
+
   $('sc').textContent=pad(0);msg.style.display='none';state='play';
   startBgm();
 }
@@ -532,7 +725,7 @@ function die(o){
   const fl=$('fl');fl.style.transition='none';fl.style.opacity='.5';void fl.offsetWidth;fl.style.transition='opacity .6s';fl.style.opacity='0';
   if(score>hi){hi=score;$('hi').textContent=pad(hi);try{localStorage.setItem('dino3d_hi',hi);}catch(e){}}
   $('t').textContent='Game over';
-  $('s').textContent='Điểm '+score+'. Chạm để chơi lại';
+  $('s').textContent='Điểm '+score+'. Chạm để chơi lại .Được làm bởi: Minh Long';
   setTimeout(()=>{if(state==='over')msg.style.display='flex';},700);
 }
 function act(){
@@ -542,7 +735,20 @@ function act(){
   jumpBuf=.14;
 }
 addEventListener('pointerdown',e=>{e.preventDefault();act();},{passive:false});
-addEventListener('keydown',e=>{if(e.code==='Space'||e.code==='ArrowUp'||e.code==='Enter'){e.preventDefault();if(!e.repeat)act();}});
+addEventListener('keydown',e=>{
+  if(e.code==='Space'||e.code==='ArrowUp'||e.code==='Enter'){e.preventDefault();if(!e.repeat)act();}
+  // Phím tắt 'T' hoặc 'G' để thử nghiệm nhanh mốc 50.000 điểm
+  if(e.code==='KeyT'||e.code==='KeyG'){triggerSpaceTest();}
+});
+
+// Cho phép nhấp vào ô Điểm để nhảy nhanh tới 50.000 điểm xem thử hiệu ứng
+function triggerSpaceTest(){
+  if(state!=='play')act();
+  dist=(SPACE_THRESHOLD-5)/0.4;
+  score=Math.floor(dist*0.4);
+  $('sc').textContent=pad(score);
+}
+// $('scoreCard').addEventListener('pointerdown',e=>{e.stopPropagation();triggerSpaceTest();});
 
 function resize(){
   const w=innerWidth,h=innerHeight,a=w/h;
@@ -556,7 +762,7 @@ function resize(){
 }
 addEventListener('resize',resize);resize();
 
-// === VÒNG LẶP CHÍNH (ĐƯỢC TỐI ƯU HÓA CAO CHO ĐIỆN THOẠI YẾU) ===
+// === VÒNG LẶP CHÍNH (TÍCH HỢP HIỆU ỨNG VŨ TRỤ KHI ĐẠT 50.000 ĐIỂM) ===
 function frame(now){
   requestAnimationFrame(frame);
   const dt=Math.min((now-last)/1000,.035);last=now;t+=dt;
@@ -566,7 +772,7 @@ function frame(now){
     const prevScore=score;
     score=Math.floor(dist*.4);
     if(Math.floor(score/100)>Math.floor(prevScore/100)) playScoreSound();
-    speed=20+Math.min(28,score*.02);
+    speed=20+Math.min(32,score*.02);
     mv=speed*dt;dist+=mv;
     gap-=mv;if(gap<=0){spawn();gap=speed*(1.1+Math.random())+6;}
     if(jumpBuf>0){jumpBuf-=dt;if(py<=0){vy=JUMP;py=.01;jumpBuf=0;jumpDir=-jumpDir;playJumpSound();}}
@@ -582,22 +788,70 @@ function frame(now){
     $('sc').textContent=pad(score);
   }
 
-  // === CẬP NHẬT CHU KỲ NGÀY ĐÊM (CHỈ CHẠY KHI ĐIỂM SỐ THAY ĐỔI) ===
+  // === KIỂM TRA MỐC 50.000 ĐIỂM ĐỂ KÍCH HOẠT HIỆU ỨNG VÀO KHÔNG GIAN ===
+  if(score>=SPACE_THRESHOLD&&!inSpace){
+    inSpace=true;
+    playWarpSound();
+    // Chớp sáng siêu không gian (Warp Flash)
+    const wf=$('warpFlash');
+    wf.style.transition='none';
+    wf.style.opacity='0.9';
+    void wf.offsetWidth;
+    wf.style.transition='opacity 1.2s ease-out';
+    wf.style.opacity='0';
+    // Hiện banner thông báo hoành tráng
+    const sb=$('spaceBanner');
+    sb.classList.add('show');
+    setTimeout(()=>{sb.classList.remove('show');},4500);
+    // Đội mũ phi hành gia cho khủng long
+    astroHelmet.visible=true;
+    oxyGroup.forEach(m=>{m.visible=true;});
+  }
+
+  // Tiến trình chuyển đổi không gian (mượt mà trong 2.5s)
+  if(inSpace&&spaceT<1.0)spaceT=Math.min(1.0,spaceT+dt*0.45);
+  if(!inSpace&&spaceT>0.0)spaceT=Math.max(0.0,spaceT-dt*0.8);
+
+  // === CẬP NHẬT MÔI TRƯỜNG & CHU KỲ (NGÀY/ĐÊM HOẶC KHÔNG GIAN) ===
   const tod=getTimeOfDay(score);
   const bl=tod.blend;
   const isNight=(tod.phase==='night'||(tod.phase==='sunset'&&bl>0.5))?1:0;
 
-  if(score!==lastScoreColor){
+  if(score!==lastScoreColor||spaceT>0){
     lastScoreColor=score;
     const phA=timePhases[tod.phase],phB=timePhases[tod.next];
-    const curSky=lerpColor(phA.sky,phB.sky,bl);
-    const curFog=lerpColor(phA.fog,phB.fog,bl);
-    const curGround=lerpColor(phA.ground,phB.ground,bl);
-    const curLane=lerpColor(phA.lane,phB.lane,bl);
-    const curSunC=lerpColor(phA.sunC,phB.sunC,bl);
-    const curSunI=lerpVal(phA.sunI,phB.sunI,bl);
-    const curHemiI=lerpVal(phA.hemiI,phB.hemiI,bl);
-    const curMountain=lerpColor(phA.mountainC,phB.mountainC,bl);
+    let curSky=lerpColor(phA.sky,phB.sky,bl);
+    let curFog=lerpColor(phA.fog,phB.fog,bl);
+    let curGround=lerpColor(phA.ground,phB.ground,bl);
+    let curLane=lerpColor(phA.lane,phB.lane,bl);
+    let curSunC=lerpColor(phA.sunC,phB.sunC,bl);
+    let curSunI=lerpVal(phA.sunI,phB.sunI,bl);
+    let curHemiI=lerpVal(phA.hemiI,phB.hemiI,bl);
+    let curMountain=lerpColor(phA.mountainC,phB.mountainC,bl);
+
+    // Khi bước vào không gian, màu sắc vũ trụ sắc nét và ánh sáng rực rỡ để nhìn rõ vật cản
+    if(spaceT>0){
+      curSky=lerpColor(curSky,0x0D092A,spaceT);
+      curFog=lerpColor(curFog,0x18103A,spaceT);
+      curGround=lerpColor(curGround,0x100C2A,spaceT);
+      curLane=lerpColor(curLane,0x281F4E,spaceT); // Lòng đường tím cyber sáng rõ, tương phản mạnh với vật thể
+      curSunC=lerpColor(curSunC,0xEDF4FF,spaceT); // Ánh sáng tinh tú trắng xanh vũ trụ rực rỡ
+      curSunI=lerpVal(curSunI,1.0,spaceT); // Chiếu sáng trực tiếp công suất cao
+      curHemiI=lerpVal(curHemiI,1.3,spaceT); // Ánh sáng môi trường mạnh mẽ chiếu sáng đều các khối 3D
+      // Viền đường neon cyan và vạch kẻ neon magenta
+      const edgeNeon=lerpColor(isNight?0xDCE8FF:0xE8DCC0,0x00FFFF,spaceT);
+      const dashNeon=lerpColor(isNight?0x88A6C5:0xD0C098,0xFF1493,spaceT);
+      edgeMat.color.setHex(edgeNeon);
+      dashMat.color.setHex(dashNeon);
+      // Đẩy xa sương mù trong vũ trụ để quan sát thấy rõ vật cản ngay từ khoảng cách xa
+      scene.fog.near=lerpVal(30,80,spaceT);
+      scene.fog.far=lerpVal(130,240,spaceT);
+    }else{
+      edgeMat.color.setHex(isNight?0xDCE8FF:0xE8DCC0);
+      dashMat.color.setHex(isNight?0x88A6C5:0xD0C098);
+      scene.fog.near=30;
+      scene.fog.far=130;
+    }
 
     scene.background.setHex(curSky);
     scene.fog.color.setHex(curFog);
@@ -609,9 +863,47 @@ function frame(now){
     hemiLight.intensity=curHemiI;
     hemiLight.groundColor.setHex(curGround);
 
-    edgeMat.color.setHex(isNight?0xDCE8FF:0xE8DCC0);
-    dashMat.color.setHex(isNight?0x88A6C5:0xD0C098);
-    cloudMat.opacity=0.85*(tod.phase==='night'?0.45:tod.phase==='sunset'?0.7:1.0);
+    cloudMat.opacity=0.85*(tod.phase==='night'?0.45:tod.phase==='sunset'?0.7:1.0)*(1-spaceT);
+  }
+
+  // Chuyển đổi cảnh vật khi vào không gian
+  if(spaceT>0){
+    const showEarth=(spaceT<0.96);
+    // Các dãy núi và cây cỏ chìm dần vào bóng tối vũ trụ; khi vào hẳn vũ trụ thì ẩn hoàn toàn tránh nhấp nháy
+    for(let i=0;i<mountains.length;i++){
+      mountains[i].position.y=mountains[i].userData.baseH-spaceT*35;
+      mountains[i].visible=showEarth;
+    }
+    for(let i=0;i<snowCaps.length;i++){
+      snowCaps[i].position.y=snowCaps[i].userData.baseH-spaceT*35;
+      snowCaps[i].visible=showEarth;
+    }
+    for(let i=0;i<decor.length;i++){
+      decor[i].position.y=(decor[i].userData.y||0)-spaceT*25;
+      decor[i].visible=showEarth;
+    }
+    for(let i=0;i<ripples.length;i++){
+      ripples[i].position.y=0.03-spaceT*25;
+      ripples[i].visible=showEarth;
+    }
+    for(let i=0;i<clouds.length;i++){
+      clouds[i].visible=showEarth;
+    }
+
+    // Mặt trời & Mặt trăng thu nhỏ biến mất nhường chỗ cho vũ trụ
+    sunSphere.scale.setScalar(Math.max(0.001,1-spaceT));
+    moonSphere.scale.setScalar(Math.max(0.001,1-spaceT));
+    sunSphere.visible=showEarth&&(sunSphere.position.y>2);
+    moonSphere.visible=showEarth&&(moonSphere.position.y>2);
+
+    // Hiển thị các hành tinh và dải ngân hà
+    spaceGroup.visible=(spaceT>0.05);
+    planetRing.rotation.z+=dt*0.06;
+    neb1.rotation.z+=dt*0.02;
+    neb2.rotation.z-=dt*0.02;
+  }else{
+    sunSphere.visible=(sunSphere.position.y>2);
+    moonSphere.visible=(moonSphere.position.y>2);
   }
 
   // Vị trí mặt trời / mặt trăng
@@ -620,35 +912,47 @@ function frame(now){
   const sunX=Math.sin(theta)*115;
   const sunY=Math.cos(theta)*70+10;
   sunSphere.position.set(sunX,sunY,-190);
-  sunSphere.visible=(sunY>2);
   sunSphere.material.color.setHex((dayPos>=0.38&&dayPos<0.58)?0xFF7722:(dayPos>=0.88)?0xFFAA44:0xFFEE55);
 
   const moonTheta=theta+Math.PI;
   const moonX=Math.sin(moonTheta)*110;
   const moonY=Math.cos(moonTheta)*65+10;
   moonSphere.position.set(moonX,moonY,-190);
-  moonSphere.visible=(moonY>2);
 
-  // Ánh sáng theo chu kỳ
-  moonLight.intensity=lerpVal(moonLight.intensity,isNight?0.45:0,Math.min(1,dt*2));
-  sun.position.set(sunX*0.15,Math.max(10,sunY*0.2),20);
-  moonLight.position.set(moonX*0.15,Math.max(8,moonY*0.2),15);
+  // Ánh sáng theo chu kỳ & ánh sáng viền tinh vân không gian
+  if(spaceT>0){
+    // Đèn viền xanh ngọc Neon từ tinh vân giúp khối 3D sắc nét
+    moonLight.intensity=lerpVal(moonLight.intensity,0.7*spaceT,Math.min(1,dt*2));
+    moonLight.color.setHex(lerpColor(0x98C0FF,0x00E5FF,spaceT));
+    moonLight.position.set(-6,15,-10);
+    // Vị trí ánh sáng chính ổn định vững chãi trong vũ trụ, không bị lắc đảo theo chu kỳ ngày đêm mặt đất
+    const targetSunX=lerpVal(sunX*0.15,8,spaceT);
+    const targetSunY=lerpVal(Math.max(10,sunY*0.2),16,spaceT);
+    sun.position.set(targetSunX,targetSunY,20);
+  }else{
+    moonLight.intensity=lerpVal(moonLight.intensity,isNight?0.45:0,Math.min(1,dt*2));
+    moonLight.color.setHex(0x98C0FF);
+    moonLight.position.set(moonX*0.15,Math.max(8,moonY*0.2),15);
+    sun.position.set(sunX*0.15,Math.max(10,sunY*0.2),20);
+  }
 
-  // Sao đêm
-  const starTarget=(tod.phase==='night')?0.9:(tod.phase==='sunset'&&bl>0.6)?0.4:(tod.phase==='dawn'&&bl<0.4)?0.3:0;
+  // Sao đêm & sao vũ trụ (lấp lánh cực đại trong không gian)
+  const starTarget=(spaceT>0)?(0.95):(tod.phase==='night')?0.9:(tod.phase==='sunset'&&bl>0.6)?0.4:(tod.phase==='dawn'&&bl<0.4)?0.3:0;
   starsMat.opacity+=(starTarget-starsMat.opacity)*Math.min(1,dt*2);
 
   if(state==='over')overT+=dt;
   const ts=state==='over'?(overT<.08?0:Math.min(1,.25+(overT-.08)*1.2)):1,sd=dt*ts;
 
   if(mv>0){
-    for(let i=0;i<decor.length;i++){
-      decor[i].position.z+=mv;
-      if(decor[i].position.z>12)placeDecor(decor[i],true);
-    }
-    for(let i=0;i<ripples.length;i++){
-      ripples[i].position.z+=mv;
-      if(ripples[i].position.z>10){ripples[i].position.z=-110;ripples[i].position.x=(Math.random()-.5)*8;}
+    if(spaceT<0.96){
+      for(let i=0;i<decor.length;i++){
+        decor[i].position.z+=mv;
+        if(decor[i].position.z>12)placeDecor(decor[i],true);
+      }
+      for(let i=0;i<ripples.length;i++){
+        ripples[i].position.z+=mv;
+        if(ripples[i].position.z>10){ripples[i].position.z=-110;ripples[i].position.x=(Math.random()-.5)*8;}
+      }
     }
     const dashLoop=dashCount*dashSpacing;
     for(let i=0;i<dashes.length;i++){
@@ -658,12 +962,14 @@ function frame(now){
   }
 
   // Mây trôi
-  for(let i=0;i<clouds.length;i++){
-    clouds[i].position.x+=clouds[i].userData.speed*dt;
-    if(clouds[i].position.x>100)clouds[i].position.x=-100;
+  if(spaceT<0.96){
+    for(let i=0;i<clouds.length;i++){
+      clouds[i].position.x+=clouds[i].userData.speed*dt;
+      if(clouds[i].position.x>100)clouds[i].position.x=-100;
+    }
   }
 
-  // Cánh thằn lằn bay
+  // Cánh thằn lằn bay hoặc xoay nhẹ thiên thạch
   for(let i=0;i<obs.length;i++){
     const o=obs[i];
     if(o.g.userData.flying){
