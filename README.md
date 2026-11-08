@@ -12,7 +12,7 @@ Bạn điều khiển chú khủng long chạy vô tận trên đường thảo 
 
 - Tốc độ chạy **tăng dần** (20 → 52 đơn vị/giây).
 - Bầu trời **chuyển day → hoàng hôn → đêm → bình minh** theo chu kỳ 2.000 điểm.
-- Đạt **10.000 điểm**, khủng long **cất cánh vào vũ trụ**: mặt đất và đường chạy chìm hẳn xuống, khủng long khoác mũ phi hành gia, bình dưỡng khí và jetpack phản lực; phía trước là hành tinh, tinh vân, sao và các thiên thạch trôi chậm rãi. **Lối chơi giữ nguyên như trên mặt đất** — vẫn chạm để nhảy né vật cản với đúng lực nhảy/trọng lực cũ, chỉ đổi hoạt ảnh nhảy thành tư thế bay và góc quay camera. 🚀
+- Đạt **10.000 điểm**, khủng long **cất cánh vào vũ trụ**: mặt đất và đường chạy chìm hẳn xuống, khủng long khoác mũ phi hành gia, giáp ngực, bình dưỡng khí và jetpack có vòi phun, đèn điểm cùng luồng khí xả phát sáng; camera hạ thấp, nghiêng bên như cảnh phim trên màn hình ngang, còn trên màn hình dọc camera tự lùi về sau lưng và nới FOV để thấy vật cản từ xa, có sway/roll nhẹ. Phía sau là tinh vân phát sáng mềm, dải ngân hà, các hành tinh có quầng sáng, bụi sao, thiên thạch trôi chậm và vignette tối góc. **Lối chơi giữ nguyên 100% như trên mặt đất** — vẫn chạm để nhảy né vật cản với đúng lực nhảy/trọng lực cũ, chỉ đổi hoạt ảnh bay, góc quay và hiệu ứng hình ảnh. 🚀
 
 ---
 
@@ -22,12 +22,13 @@ Bạn điều khiển chú khủng long chạy vô tận trên đường thảo 
 | --- | --- |
 | 🌍 Cảnh 3D | Núi tuyết, mây trôi, cỏ hoa, đá, xương rồng; mặt trời & mặt trăng 3D di chuyển theo chu kỳ, sao đêm lấp lánh |
 | 🌙 Chu kỳ ngày đêm | 4 pha (ngày / hoàng hôn / đêm / bình minh) với bảng màu riêng cho trời, sương mù, mặt đất, đường chạy và ánh sáng |
-| 🚀 Chế độ bay vũ trụ | Chuyển cảnh mượt bằng warp-flash + banner, mặt đất/đường chạy biến mất, khủng long khoác jetpack và chuyển hoạt ảnh nhảy sang tư thế bay, góc quay camera rộng hơn; hành tinh – tinh vân – sao – thiên thạch trôi chậm, vệt tốc độ nhẹ; vật cản vũ trụ bay tới và xoay tumbling. Vật lý nhảy/trọng lực giữ nguyên 100% |
+| 🚀 Chế độ bay vũ trụ | Chuyển cảnh mượt bằng warp-flash + banner + cú zoom FOV; mặt đất/đường chạy biến mất. Khủng long bay tư thế phi hành gia: thân ngả tới, chân co về sau, tay dang, đầu ngẩng; jetpack có vỏ kim loại, vòi phun, đèn PointLight cyan, lửa phản lực và hạt khí xả. Camera hạ thấp, nghiêng bên, sway/roll/FOV nhẹ; **trên màn hình dọc, camera tự lùi về sau lưng và nới FOV để thấy vật cản từ xa**; hành tinh – tinh vân – sao – thiên thạch trôi **chậm**, vệt tốc độ nền nhẹ, vignette tối góc. Vật lý nhảy/trọng lực giữ nguyên 100% |
+| 🌌 Hình ảnh vũ trụ | Tinh vân và quầng hành tinh dùng sprite phát sáng mềm (CanvasTexture), thêm dải ngân hà, bụi sao nhiều màu, vignette tối góc và warp-flash; nền vũ trụ trôi chậm, không lao nhanh |
 | 🧱 10 loại vật cản mặt đất | Xương rồng (1–3 cây), xương khủng long, khúc gỗ, tổ trứng, tảng đá xếp chồng, thằn lằn bay (cánh đập động), bụi gai, trụ đá cổ đại |
-| 🛸 4 loại vật cản không gian | Thiên thạch rực lửa, cụm tinh thể neon, UFO đĩa bay có chùm tia, vệ tinh hỏng với tấm pin mặt trời |
+| 🛸 4 loại vật cản không gian | Thiên thạch rực lửa (đuôi lửa nhấp nháy + quầng cam), cụm tinh thể neon (quầng tím), UFO đĩa bay có chùm tia đập nhịp, vệ tinh hỏng với đèn cảnh báo chớp và quầng xanh |
 | 🔊 Âm thanh thủ tục (Web Audio API) | Nhạc nền 8-bit tự sinh (melody + bass + hi-hat + kick), tiếng nhảy, tiếng jetpack khi bay, tiếng ghi điểm mỗi 100 điểm, nhạc game-over, tiếng warp siêu không gian — tất cả sinh bằng oscillator, không cần file âm thanh |
 | 📱 Tối ưu mobile | Nhận diện thiết bị để tắt antialias, giảm pixel-ratio, giảm số mesh (mây, sao, vật trang trí, vạch kẻ đường), dùng chung geometry tránh rò rỉ RAM |
-| 🎬 Sắc màu & cảm giác | Camera nghiêng khi nhảy, rung khi chạm đất/va chạm, FOV "punch" khi thua, mảnh vỡ bay tung tóe, nhún nhảy hoạt ảnh sinh động |
+| 🎬 Sắc màu & cảm giác | Camera nghiêng khi nhảy, sway/roll/FOV điện ảnh trong vũ trụ, rung khi chạm đất/va chạm, FOV "punch" khi thua và khi warp, mảnh vỡ bay tung tóe, nhún nhảy hoạt ảnh sinh động |
 | 🏆 Lưu kỷ lục | Lưu điểm cao nhất vào `localStorage` (khóa `dino3d_hi`) |
 
 ---
@@ -83,10 +84,10 @@ Dino/
 
 Phân chia trách nhiệm giữa các tệp:
 
-- **`index.html`** — khung HTML: canvas, HUD điểm/kỷ lục, banner không gian, màn hình chờ và nạp CSS/JS.
-- **`css/style.css`** — toàn bộ CSS: bảng màu, HUD, nút âm thanh, hiệu ứng warp-flash và banner.
+- **`index.html`** — khung HTML: canvas, lớp vignette không gian, HUD điểm/kỷ lục, banner không gian, màn hình chờ và nạp CSS/JS.
+- **`css/style.css`** — toàn bộ CSS: bảng màu, HUD, nút âm thanh, vignette `body.space-mode`, hiệu ứng warp-flash và banner.
 - **`js/audio.js`** — `initAudio`, `playBgmNote`, `playJumpSound`, `playFlySound`, `playGameOverSound`, `playScoreSound`, `playWarpSound`, `toggleSound` và sự kiện nút loa.
-- **`js/game.js`** — khởi tạo Three.js (renderer tối ưu theo thiết bị, camera, ánh sáng, mặt đất/đường chạy), cảnh vật (núi, mây, sao, mặt trời/trăng, `spaceGroup` gồm hành tinh – tinh vân – bụi sao – thiên thạch trôi – vệt tốc độ), vật cản (`cactus`, `fossil`, `log`, `eggNest`, `rockStack`, `pterodactyl`, `thornBush`, `stonePillar`, `makeSpaceObs`), nhân vật (khủng long, bóng đổ, mũ phi hành gia, bình dưỡng khí, jetpack) và vòng lặp game với chuyển cảnh chạy → bay.
+- **`js/game.js`** — khởi tạo Three.js (renderer tối ưu theo thiết bị, camera, ánh sáng, mặt đất/đường chạy), cảnh vật (núi, mây, sao, mặt trời/trăng, `spaceGroup` gồm hành tinh – tinh vân sprite phát sáng – dải ngân hà – bụi sao – thiên thạch trôi – vệt tốc độ), vật cản (`cactus`, `fossil`, `log`, `eggNest`, `rockStack`, `pterodactyl`, `thornBush`, `stonePillar`, `makeSpaceObs` kèm hiệu ứng lửa/chùm tia/đèn), nhân vật (khủng long có khớp gối, bóng đổ, mũ phi hành gia, giáp ngực, bình dưỡng khí, jetpack + hạt khí xả + PointLight) và vòng lặp game với chuyển cảnh chạy → bay, camera điện ảnh và hiệu ứng va chạm.
 
 ---
 
