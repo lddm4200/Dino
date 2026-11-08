@@ -4,6 +4,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #hud{position:fixed;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:calc(env(safe-area-inset-top,0px) + 12px) 14px 0;pointer-events:none}
 .card{background:var(--card);color:var(--cardfg);border:2px solid var(--edge);border-radius:12px;padding:6px 14px;text-align:center;min-width:92px;box-shadow:0 4px 16px rgba(0,0,0,.35)}
 #fl{position:fixed;inset:0;background:#e0452e;opacity:0;pointer-events:none}
+#spaceVignette{position:fixed;inset:0;pointer-events:none;opacity:0;transition:opacity 1.4s ease;background:radial-gradient(ellipse at 50% 44%,rgba(0,0,0,0) 42%,rgba(5,0,22,0.35) 76%,rgba(2,0,12,0.7) 100%)}
+body.space-mode #spaceVignette{opacity:1}
 .card small{display:block;font-size:11px;color:var(--sub);letter-spacing:.04em}
 .card b{font-size:26px;font-variant-numeric:tabular-nums;font-weight:700}
 #msg{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 8vh)}

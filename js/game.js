@@ -50,6 +50,19 @@ function lerpColor(c1,c2,t){
 }
 function lerpVal(a,b,t){return a+(b-a)*t;}
 function smooth01(x){x=Math.max(0,Math.min(1,x));return x*x*(3-2*x);}
+// Texture phát sáng mềm dùng cho tinh vân, hành tinh và khí xả jetpack
+function makeSoftGlowTexture(){
+  const s=128,cv=document.createElement('canvas');cv.width=cv.height=s;
+  const ctx=cv.getContext('2d');
+  const grd=ctx.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  grd.addColorStop(0,'rgba(255,255,255,0.95)');
+  grd.addColorStop(0.35,'rgba(255,255,255,0.35)');
+  grd.addColorStop(0.7,'rgba(255,255,255,0.09)');
+  grd.addColorStop(1,'rgba(255,255,255,0)');
+  ctx.fillStyle=grd;ctx.fillRect(0,0,s,s);
+  const tex=new THREE.CanvasTexture(cv);tex.needsUpdate=true;return tex;
+}
+const softGlowTex=makeSoftGlowTexture();
 
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x7ec0ee);
@@ -233,14 +246,24 @@ const planetFar2=new THREE.Mesh(
 planetFar2.position.set(-80,52,-175);
 spaceGroup.add(planetFar2);
 
-// 4. Tinh vân vũ trụ rực rỡ (depthWrite=false tránh nhấp nháy đa giác)
-const nebGeo=new THREE.DodecahedronGeometry(26,0);
-const neb1=new THREE.Mesh(nebGeo,new THREE.MeshBasicMaterial({color:0x8A2BE2,transparent:true,opacity:0,fog:false,depthWrite:false}));
-neb1.position.set(30,50,-195);neb1.scale.set(1.6,0.8,1);spaceGroup.add(neb1);
-const neb2=new THREE.Mesh(nebGeo,new THREE.MeshBasicMaterial({color:0x00CED1,transparent:true,opacity:0,fog:false,depthWrite:false}));
-neb2.position.set(-45,28,-190);neb2.scale.set(1.4,0.7,1);spaceGroup.add(neb2);
-const neb3=new THREE.Mesh(nebGeo,new THREE.MeshBasicMaterial({color:0xFF4FA3,transparent:true,opacity:0,fog:false,depthWrite:false}));
-neb3.position.set(5,15,-200);neb3.scale.set(1.1,0.55,1);spaceGroup.add(neb3);
+// 4. Tinh vân mềm phát sáng + dải ngân hà (sprite phát sáng thay cho khối đa giác)
+const spaceGlowMats=[];
+function addSpaceGlow(x,y,z,sx,sy,color,op,rot){
+  const mat=new THREE.SpriteMaterial({map:softGlowTex,color,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false,rotation:rot||0});
+  const s=new THREE.Sprite(mat);
+  s.position.set(x,y,z);s.scale.set(sx,sy,1);
+  spaceGroup.add(s);spaceGlowMats.push({mat,op});
+  return s;
+}
+const neb1=addSpaceGlow(30,48,-205,150,90,0x8A2BE2,0.5,-0.15);
+const neb2=addSpaceGlow(-48,30,-200,120,70,0x00CED1,0.4,0.2);
+const neb3=addSpaceGlow(6,16,-210,110,60,0xFF4FA3,0.32,0.05);
+const galaxyBand=addSpaceGlow(-10,46,-228,330,80,0xA9C2FF,0.18,0.55);
+// Quầng sáng mềm quanh các hành tinh
+addSpaceGlow(58,34,-172,72,72,0xB26BFF,0.5,0);
+addSpaceGlow(-48,28,-147,26,26,0x4AA8FF,0.45,0);
+addSpaceGlow(20,58,-187,20,20,0xFF8A5B,0.35,0);
+addSpaceGlow(-80,52,-178,15,15,0x36D6C8,0.3,0);
 
 // 5. Bụi sao nhiều màu (lớp gần hơn tạo chiều sâu)
 const dustGeo=new THREE.BufferGeometry();
@@ -417,8 +440,18 @@ function makeSpaceObs(){
     // Đuôi lửa plasma sáng rực
     const fire=bx(0.9,0.9,2.5,0xFF3300,0,0,1.6,g);
     fire.scale.set(1,0.7,1);
-    bx(0.6,0.6,2.0,0xFFAA00,0,0,1.8,g);
-    bx(0.35,0.35,1.3,0xFFFF66,0,0,2.0,g); // Lõi lửa trắng vàng rực rỡ
+    fire.material=new THREE.MeshBasicMaterial({color:0xFF3300,transparent:true,opacity:0.7,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+    const fire2=bx(0.6,0.6,2.0,0xFFAA00,0,0,1.8,g);
+    fire2.material=new THREE.MeshBasicMaterial({color:0xFFAA00,transparent:true,opacity:0.85,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+    const fire3=bx(0.35,0.35,1.3,0xFFFF66,0,0,2.0,g); // Lõi lửa trắng vàng rực rỡ
+    fire3.material=new THREE.MeshBasicMaterial({color:0xFFFF66,transparent:true,opacity:0.95,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+    g.userData.fire=[fire,fire2,fire3];
+    g.userData.fireBase=[fire.scale.z,fire2.scale.z,fire3.scale.z];
+    const meteorGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:softGlowTex,color:0xFF7A1E,transparent:true,opacity:0.6,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+    meteorGlow.position.set(0,0,0.9);meteorGlow.scale.set(6.2,6.2,1);
+    g.add(meteorGlow);
+    g.userData.glow=meteorGlow;g.userData.glowBase=0.6;g.userData.glowSize=6.2;
+    g.userData.spaceType='meteor';
     h=2.4;w=2.4;
   }else if(r<0.64){
     // 2. Cụm tinh thể pha lê vũ trụ (Cosmic Crystal Spire) - Phát sáng Neon Cyan & Magenta
@@ -433,16 +466,36 @@ function makeSpaceObs(){
     crBase.position.y=0.4;g.add(crBase);
     bx(0.4,0.2,0.4,0x00FFFF,0.5,0.3,0.3,g);
     bx(0.4,0.2,0.4,0xFF00AA,-0.5,0.3,-0.3,g);
+    const crystalGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:softGlowTex,color:0xB44CFF,transparent:true,opacity:0.42,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+    crystalGlow.position.set(0,1.3,0.2);crystalGlow.scale.set(4.6,4.6,1);
+    g.add(crystalGlow);
+    g.userData.glow=crystalGlow;g.userData.glowBase=0.42;g.userData.glowSize=4.6;
+    g.userData.spaceType='crystal';
     h=2.8;w=2.4;
   }else if(r<0.82){
-    // 3. Tàu UFO Người ngoài hành tinh (Alien Flying Saucer) - Bạc sáng bóng kèm đèn Neon và chùm tia bắt cóc
+    // 3. Tàu UFO Người ngoài hành tinh (Alien Flying Saucer) - thân đĩa kim loại, vòng neon, vòm buồng lái và chùm tia
     g=new THREE.Group();
-    bx(2.6,0.35,2.6,0xA8C4E8,0,0,0,g); // Đĩa bay hợp kim titan bạc sáng bóng
-    bx(2.9,0.12,2.9,0x39FF14,0,0,0,g); // Vành đèn Neon xanh lá huỳnh quang cực sáng
-    bx(1.1,0.6,1.1,0x00FFFF,0,0.4,0,g); // Buồng lái phát sáng Cyan
-    bx(0.5,0.4,0.5,0xFFFFFF,0,0.5,0,g); // Điểm sáng trắng trung tâm
-    const beam=bx(1.6,1.8,1.6,0x00FFAA,0,-1.0,0,g); // Chùm tia năng lượng bắt cóc
-    beam.material=new THREE.MeshBasicMaterial({color:0x00FFAA,transparent:true,opacity:0.45,depthWrite:false});
+    const hull=new THREE.Mesh(new THREE.CylinderGeometry(1.5,1.5,0.32,14),M(0xA8C4E8));
+    g.add(hull);
+    const hullBottom=new THREE.Mesh(new THREE.CylinderGeometry(0.95,1.25,0.3,12),M(0x7E97B8));
+    hullBottom.position.y=-0.28;g.add(hullBottom);
+    const ufoRing=new THREE.Mesh(new THREE.TorusGeometry(1.42,0.09,6,20),new THREE.MeshBasicMaterial({color:0x39FF14,transparent:true,opacity:0.95,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+    ufoRing.rotation.x=Math.PI/2;ufoRing.position.y=0.03;g.add(ufoRing);
+    const dome=new THREE.Mesh(new THREE.SphereGeometry(0.75,10,8,0,Math.PI*2,0,Math.PI/2),new THREE.MeshLambertMaterial({color:0x00FFFF,transparent:true,opacity:0.62,emissive:0x003333}));
+    dome.position.y=0.16;g.add(dome);
+    bx(0.32,0.32,0.32,0xFFFFFF,0,0.4,0,g); // phi công phát sáng
+    const beamMat=new THREE.MeshBasicMaterial({color:0x00FFAA,transparent:true,opacity:0.32,blending:THREE.AdditiveBlending,depthWrite:false,fog:false,side:THREE.DoubleSide});
+    const beam=new THREE.Mesh(new THREE.CylinderGeometry(0.4,1.5,2.6,12,1,true),beamMat);
+    beam.position.set(0,-1.45,0);g.add(beam);
+    const beamTip=new THREE.Sprite(new THREE.SpriteMaterial({map:softGlowTex,color:0x00FFAA,transparent:true,opacity:0.5,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+    beamTip.position.set(0,-2.7,0);beamTip.scale.set(2.8,2.8,1);g.add(beamTip);
+    const ufoGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:softGlowTex,color:0x39FF14,transparent:true,opacity:0.4,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+    ufoGlow.position.set(0,0.1,0);ufoGlow.scale.set(6.4,6.4,1);
+    g.add(ufoGlow);
+    g.userData.beam=beam;
+    g.userData.beamTip=beamTip;
+    g.userData.glow=ufoGlow;g.userData.glowBase=0.4;g.userData.glowSize=6.4;
+    g.userData.spaceType='ufo';
     g.userData.flying=true;
     h=2.8;w=3.2;
   }else{
@@ -452,8 +505,15 @@ function makeSpaceObs(){
     bx(0.9,0.5,0.9,0xFFD700,0,0.7,0.15,g); // Lớp cách nhiệt mạ vàng
     bx(1.9,0.08,0.8,0x00A6FF,-1.5,0.7,0,g); // Tấm pin năng lượng mặt trời xanh rực
     bx(1.9,0.08,0.8,0x00A6FF,1.5,0.7,0,g);
-    bx(0.3,0.3,0.3,0xFF0033,0,1.45,0,g); // Đèn cảnh báo nhấp nháy đỏ rực
+    const beacon=bx(0.3,0.3,0.3,0xFF0033,0,1.45,0,g); // Đèn cảnh báo nhấp nháy đỏ rực
+    beacon.material=new THREE.MeshBasicMaterial({color:0xFF3355,transparent:true,opacity:0.9,depthWrite:false,fog:false});
     bx(0.6,0.1,0.6,0xFFD700,0,1.55,-0.3,g); // Ăng-ten chảo vàng
+    const satGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:softGlowTex,color:0x4AA8FF,transparent:true,opacity:0.3,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+    satGlow.position.set(0,0.6,0);satGlow.scale.set(4.2,4.2,1);
+    g.add(satGlow);
+    g.userData.beacon=beacon;
+    g.userData.glow=satGlow;g.userData.glowBase=0.3;g.userData.glowSize=4.2;
+    g.userData.spaceType='satellite';
     h=2.2;w=4.0;
   }
   // Vật cản bay lơ lửng ở nhiều độ cao khác nhau
@@ -487,9 +547,11 @@ function spawn(){
   o.g.position.set((Math.random()-.5)*.6,o.g.position.y||0,-100);
   o.g.userData.baseY=o.g.position.y;
   if(o.space){
-    o.spinX=(Math.random()-.5)*1.6;
-    o.spinY=(Math.random()-.5)*1.6;
-    o.spinZ=(Math.random()-.5)*1.2;
+    const st=o.g.userData.spaceType;
+    const spinScale=st==='ufo'?0:st==='satellite'?0.5:1;
+    o.spinX=(Math.random()-.5)*1.6*spinScale;
+    o.spinY=(Math.random()-.5)*1.6*(st==='ufo'?0.5:spinScale);
+    o.spinZ=(Math.random()-.5)*1.2*spinScale;
   }
   scene.add(o.g);obs.push(o);
 }
@@ -515,8 +577,9 @@ bx(.9,.9,1.6,GR,0,0,.8,tail);
 bx(.6,.6,1.5,DK,0,-.1,2.2,tail);
 bx(.35,.35,1.2,DK,0,-.2,3.3,tail);
 for(let i=0;i<3;i++)bx(.3,.4,.3,DK,0,2.9-i*.35,.5+i*.7,bodyG);
-function leg(x){const p=new THREE.Group();p.position.set(x,1.3,.1);dino.add(p);bx(.55,1.3,.7,GR,0,-.65,0,p);bx(.6,.25,1,DK,0,-1.2,-.2,p);return p;}
-const legL=leg(-.45),legR=leg(.45);
+function leg(x){const p=new THREE.Group();p.position.set(x,1.3,.1);dino.add(p);bx(.55,.65,.7,GR,0,-.325,0,p);const knee=new THREE.Group();knee.position.set(0,-.65,0);p.add(knee);bx(.5,.55,.6,GR,0,-.275,0,knee);bx(.6,.25,1,DK,0,-.55,-.2,knee);return{p,knee};}
+const legLData=leg(-.45),legL=legLData.p,kneeL=legLData.knee;
+const legRData=leg(.45),legR=legRData.p,kneeR=legRData.knee;
 const shadow=new THREE.Mesh(new THREE.CircleGeometry(1,20),new THREE.MeshBasicMaterial({color:0x6b5a40,transparent:true,opacity:.32,fog:false,depthWrite:false}));
 shadow.rotation.x=-Math.PI/2;shadow.position.y=.07;scene.add(shadow);
 
@@ -524,10 +587,14 @@ shadow.rotation.x=-Math.PI/2;shadow.position.y=.07;scene.add(shadow);
 const astroHelmet=new THREE.Group();
 const helmetGlass=new THREE.Mesh(
   new THREE.SphereGeometry(1.25,10,8),
-  new THREE.MeshLambertMaterial({color:0x70E0FF,transparent:true,opacity:0.45,depthWrite:false})
+  new THREE.MeshLambertMaterial({color:0x9FEFFF,transparent:true,opacity:0.26,depthWrite:false,emissive:0x082430})
 );
 helmetGlass.position.set(0,0.85,-0.6);
 astroHelmet.add(helmetGlass);
+// Điểm loé giúp kính mũ đọc rõ chất thuỷ tinh
+const helmetShine=new THREE.Sprite(new THREE.SpriteMaterial({map:softGlowTex,color:0xFFFFFF,transparent:true,opacity:0.5,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+helmetShine.position.set(0.55,1.25,-1.1);helmetShine.scale.set(1.0,1.0,1);
+astroHelmet.add(helmetShine);
 bx(1.7,0.22,1.9,0xD4AF37,0,0.2,-0.6,astroHelmet); // Vành vàng
 headG.add(astroHelmet);
 astroHelmet.visible=false;
@@ -539,25 +606,99 @@ bx(0.18,0.15,0.18,0x00E5FF,0.4,2.8,0.95,bodyG);
 const oxyGroup=[oxyTank1,oxyTank2,bodyG.children[bodyG.children.length-1],bodyG.children[bodyG.children.length-2]];
 oxyGroup.forEach(m=>{m.visible=false;});
 
+// Bộ giáp phi hành gia: tấm ngực trắng, đèn vai cyan để nhân vật đọc rõ là phi công vũ trụ
+const suitGroup=new THREE.Group();
+bodyG.add(suitGroup);
+bx(1.0,.68,.13,0xE8F4FF,0,2.28,-1.16,suitGroup);
+bx(.34,.2,.14,0x00E5FF,0,2.38,-1.24,suitGroup);
+bx(.42,.26,.55,0xE8F4FF,-.84,2.62,.05,suitGroup);
+bx(.42,.26,.55,0xE8F4FF,.84,2.62,.05,suitGroup);
+bx(.3,.08,.14,0x00E5FF,-.84,2.74,.24,suitGroup);
+bx(.3,.08,.14,0x00E5FF,.84,2.74,.24,suitGroup);
+suitGroup.visible=false;
+
 // === JETPACK PHẢN LỰC CHO CHẾ ĐỘ BAY ===
-const jetMat=new THREE.MeshBasicMaterial({color:0x66E5FF,transparent:true,opacity:0.85,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
-const jetCoreMat=new THREE.MeshBasicMaterial({color:0xFFFFFF,transparent:true,opacity:0.9,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+const jetMat=new THREE.MeshBasicMaterial({color:0x55DDFF,transparent:true,opacity:0.55,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+const jetCoreMat=new THREE.MeshBasicMaterial({color:0xFFFFFF,transparent:true,opacity:0.7,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
 const jetGroup=new THREE.Group();
-const jetL=new THREE.Mesh(new THREE.ConeGeometry(0.28,1.9,6),jetMat);
-const jetR=new THREE.Mesh(new THREE.ConeGeometry(0.28,1.9,6),jetMat);
-const jetL2=new THREE.Mesh(new THREE.ConeGeometry(0.12,1.1,5),jetCoreMat);
-const jetR2=new THREE.Mesh(new THREE.ConeGeometry(0.12,1.1,5),jetCoreMat);
-[jetL,jetR,jetL2,jetR2].forEach(m=>{m.rotation.x=Math.PI/2+0.6;jetGroup.add(m);});
-jetL.position.set(-0.72,2.3,1.15);jetR.position.set(0.72,2.3,1.15);
-jetL2.position.set(-0.72,2.3,1.15);jetR2.position.set(0.72,2.3,1.15);
+
+// Vỏ ba lô & vòi phun kim loại để jetpack trông như thiết bị thật
+const jetPackMat=new THREE.MeshLambertMaterial({color:0x8FA3BF,flatShading:true});
+const jetNozzleMat=new THREE.MeshLambertMaterial({color:0x2E3444,flatShading:true});
+bx(1.35,1.15,.5,0x8FA3BF,0,2.18,1.16,jetGroup); // thân ba lô
+bx(1.05,.18,.56,0xD4AF37,0,2.72,1.16,jetGroup); // viền vàng
+bx(.18,.1,.06,0x00E5FF,0,2.48,1.43,jetGroup); // đèn báo trạng thái
+function makeNozzle(x){
+  const n=new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.3,0.72,7),jetNozzleMat);
+  n.position.set(x,2.18,1.28);
+  n.rotation.x=Math.PI/2+0.95;
+  jetGroup.add(n);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(0.26,0.055,4,10),jetPackMat);
+  ring.position.set(x,2.05,1.5);
+  ring.rotation.x=0.6;
+  jetGroup.add(ring);
+  return n;
+}
+const nozzleL=makeNozzle(-0.72),nozzleR=makeNozzle(0.72);
+const jetConeGeo=(r,h,s)=>{const g=new THREE.ConeGeometry(r,h,s);g.translate(0,h/2,0);return g;};
+const jetL=new THREE.Mesh(jetConeGeo(0.30,1.5,7),jetMat);
+const jetR=new THREE.Mesh(jetConeGeo(0.30,1.5,7),jetMat);
+const jetL2=new THREE.Mesh(jetConeGeo(0.14,0.9,5),jetCoreMat);
+const jetR2=new THREE.Mesh(jetConeGeo(0.14,0.9,5),jetCoreMat);
+[jetL,jetR,jetL2,jetR2].forEach(m=>{m.rotation.x=Math.PI/2+0.95;jetGroup.add(m);});
+jetL.position.set(-0.72,2.1,1.62);jetR.position.set(0.72,2.1,1.62);
+jetL2.position.set(-0.72,2.1,1.62);jetR2.position.set(0.72,2.1,1.62);
 const jetGlow=new THREE.Mesh(
   new THREE.SphereGeometry(0.55,8,6),
-  new THREE.MeshBasicMaterial({color:0x55DDFF,transparent:true,opacity:0.4,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})
+  new THREE.MeshBasicMaterial({color:0x55DDFF,transparent:true,opacity:0.3,blending:THREE.AdditiveBlending,depthWrite:false,fog:false})
 );
-jetGlow.position.set(0,2.35,1.25);jetGlow.scale.set(1.4,1.1,1.8);
+jetGlow.position.set(0,2.05,1.75);jetGlow.scale.set(1.25,0.95,1.6);
 jetGroup.add(jetGlow);
+// Hai quầng sáng nhỏ ngay miệng vòi phun để thấy rõ động cơ đang hoạt động
+const nozzleGlowL=new THREE.Sprite(new THREE.SpriteMaterial({map:softGlowTex,color:0x7FEBFF,transparent:true,opacity:0.8,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+nozzleGlowL.position.set(-0.72,2.1,1.75);nozzleGlowL.scale.set(1.05,1.05,1);
+const nozzleGlowR=new THREE.Sprite(new THREE.SpriteMaterial({map:softGlowTex,color:0x7FEBFF,transparent:true,opacity:0.8,blending:THREE.AdditiveBlending,depthWrite:false,fog:false}));
+nozzleGlowR.position.set(0.72,2.1,1.75);nozzleGlowR.scale.set(1.05,1.05,1);
+jetGroup.add(nozzleGlowL);jetGroup.add(nozzleGlowR);
+// Đèn điểm xanh lạnh hắt sáng vào thân khủng long & bụi vũ trụ quanh jetpack
+const jetLight=new THREE.PointLight(0x55DDFF,0,10,2);
+jetLight.position.set(0,2.1,1.9);
+jetGroup.add(jetLight);
 jetGroup.visible=false;
 bodyG.add(jetGroup);
+
+// === HẠT KHÍ XẢ JETPACK (sprite phát sáng cuộn về phía camera) ===
+const exhausts=[];
+const exhaustCount=isMobile?16:30;
+for(let i=0;i<exhaustCount;i++){
+  const mat=new THREE.SpriteMaterial({map:softGlowTex,color:0x5FE6FF,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false,fog:false});
+  const s=new THREE.Sprite(mat);
+  s.visible=false;s.scale.set(.3,.3,1);
+  scene.add(s);
+  exhausts.push({s,life:0,max:.5,vx:0,vy:0,vz:0,base:.26});
+}
+let exhaustAcc=0;
+const exhaustVec=new THREE.Vector3();
+function spawnExhaust(){
+  let p=null;
+  for(let i=0;i<exhausts.length;i++)if(exhausts[i].life<=0){p=exhausts[i];break;}
+  if(!p)return;
+  exhaustVec.set(Math.random()<.5?-0.72:0.72,2.1,1.74);
+  bodyG.localToWorld(exhaustVec);
+  p.s.position.copy(exhaustVec);
+  p.s.position.x+=(Math.random()-.5)*.14;
+  p.s.position.y+=(Math.random()-.5)*.14;
+  p.vx=(Math.random()-.5)*.9;
+  p.vy=-.7-Math.random()*1.1;
+  p.vz=1.2+Math.random()*1.2;
+  p.max=.16+Math.random()*.18;
+  p.life=p.max;
+  p.base=.10+Math.random()*.09;
+  p.s.material.color.setHex(Math.random()<.3?0xFFFFFF:0x5FE6FF);
+  p.s.material.opacity=.9;
+  p.s.scale.set(p.base,p.base,1);
+  p.s.visible=true;
+}
 
 // === TRANG TRÍ (TỐI ƯU HÓA SỐ LƯỢNG MESH CHO MOBILE) ===
 const decor=[];
@@ -644,9 +785,14 @@ function reset(){
   bodyG.position.set(0,0,0);bodyG.rotation.set(0,0,0);
   headG.rotation.set(0,0,0);
   legL.rotation.set(0,0,0);legR.rotation.set(0,0,0);
+  kneeL.rotation.set(0,0,0);kneeR.rotation.set(0,0,0);
   armL.rotation.set(0,0,0);armR.rotation.set(0,0,0);
   tail.rotation.set(0,0,0);
   jetGroup.visible=false;
+  jetLight.intensity=0;
+  for(let i=0;i<exhausts.length;i++){exhausts[i].life=0;exhausts[i].s.visible=false;exhausts[i].s.material.opacity=0;}
+  exhaustAcc=0;
+  document.body.classList.remove('space-mode');
   shadow.visible=true;shadow.position.set(-0.5,0.07,0);shadow.scale.set(1.5,2.4,1);shadow.material.opacity=.32;
   for(let i=0;i<parts.length;i++){parts[i].life=0;parts[i].m.visible=false;}
 
@@ -667,9 +813,10 @@ function reset(){
   starsMat.opacity=0;
   astroHelmet.visible=false;
   oxyGroup.forEach(m=>{m.visible=false;});
+  suitGroup.visible=false;
   spaceGroup.visible=false;
   planetRing.material.opacity=0;
-  neb1.material.opacity=0;neb2.material.opacity=0;neb3.material.opacity=0;
+  for(let i=0;i<spaceGlowMats.length;i++)spaceGlowMats[i].mat.opacity=0;
   dustMat.opacity=0;speedLineMat.opacity=0;
   sunSphere.scale.set(1,1,1);
   moonSphere.scale.set(1,1,1);
@@ -763,6 +910,8 @@ function frame(now){
   // === KIỂM TRA MỐC 10.000 ĐIỂM ĐỂ KÍCH HOẠT CHẾ ĐỘ BAY ===
   if(score>=SPACE_THRESHOLD&&!inSpace){
     inSpace=true;
+    document.body.classList.add('space-mode');
+    punch=1;shake=Math.max(shake,.3);
     playWarpSound();
     // Dọn vật cản mặt đất để chuyển cảnh sạch sẽ, sau đó vật cản vũ trụ sẽ bay tới
     for(let i=0;i<obs.length;i++)scene.remove(obs[i].g);
@@ -781,6 +930,7 @@ function frame(now){
     // Trang bị mũ phi hành gia, bình dưỡng khí và jetpack
     astroHelmet.visible=true;
     oxyGroup.forEach(m=>{m.visible=true;});
+    suitGroup.visible=true;
     jetGroup.visible=true;
   }
 
@@ -875,9 +1025,7 @@ function frame(now){
     // Vũ trụ hiện dần
     spaceGroup.visible=(sp>0.1);
     planetRing.material.opacity=0.75*sp;
-    neb1.material.opacity=0.25*sp;
-    neb2.material.opacity=0.2*sp;
-    neb3.material.opacity=0.16*sp;
+    for(let i=0;i<spaceGlowMats.length;i++)spaceGlowMats[i].mat.opacity=spaceGlowMats[i].op*sp;
     dustMat.opacity=0.65*sp;
     speedLineMat.opacity=0.32*sp;
 
@@ -887,9 +1035,10 @@ function frame(now){
     planetFar1.rotation.y+=dt*0.04;
     planetFar2.rotation.y+=dt*0.05;
     planetRing.rotation.z+=dt*0.08;
-    neb1.rotation.z+=dt*0.02;
-    neb2.rotation.z-=dt*0.02;
-    neb3.rotation.z+=dt*0.015;
+    neb1.material.rotation+=dt*0.012;
+    neb2.material.rotation-=dt*0.01;
+    neb3.material.rotation+=dt*0.008;
+    galaxyBand.material.rotation+=dt*0.003;
     dust.rotation.z+=dt*0.006;
 
     // Thiên thạch nền và vệt tốc độ trôi chậm rãi (nền tĩnh lặng, không lao nhanh)
@@ -909,7 +1058,7 @@ function frame(now){
       const l=speedLines[i];
       const ls=lineSpeed*(0.75+(l.userData.speed%10)/20);
       l.position.z+=ls*dt;
-      if(l.position.z>15){
+      if(l.position.z>-5){
         l.position.z=-170-Math.random()*40;
         l.position.x=(Math.random()-0.5)*90;
         l.position.y=-10+Math.random()*50;
@@ -999,6 +1148,49 @@ function frame(now){
       o.g.rotation.y+=o.spinY*sf;
       o.g.rotation.z+=o.spinZ*sf;
     }
+    // Hiệu ứng riêng: lửa thiên thạch nhấp nháy, chùm tia UFO đập nhịp, đèn vệ tinh chớp
+    const ud=o.g.userData;
+    if(ud.spaceType){
+      if(ud.fire){
+        for(let fi=0;fi<ud.fire.length;fi++){
+          const fm=ud.fire[fi];
+          const flick=.8+Math.sin(t*15+fi*2.3+o.g.position.z)*.14+Math.random()*.16;
+          fm.scale.z=ud.fireBase[fi]*flick;
+          fm.material.opacity=Math.min(1,.45+flick*.45);
+        }
+      }
+      if(ud.beam){
+        const bp=.5+.5*Math.sin(t*6.5+o.g.position.z*.25);
+        ud.beam.material.opacity=.24+bp*.4;
+        const bs=1+bp*.26;
+        ud.beam.scale.x=bs;ud.beam.scale.z=bs;
+        if(ud.beamTip){
+          ud.beamTip.material.opacity=.3+bp*.35;
+          ud.beamTip.scale.set(2.4+bp*.9,2.4+bp*.9,1);
+        }
+      }
+      if(ud.beacon)ud.beacon.material.opacity=.35+.65*(.5+.5*Math.sin(t*9+o.g.position.z));
+      if(ud.glow){
+        const gs=1+Math.sin(t*3.2+o.g.position.z*.6)*.09;
+        ud.glow.material.opacity=ud.glowBase*Math.min(1,spaceT*1.6)*(.8+.2*Math.sin(t*4.6+o.g.position.z));
+        ud.glow.scale.set(ud.glowSize*gs,ud.glowSize*gs,1);
+      }
+    }
+  }
+
+  // Hạt khí xả jetpack: bay về phía camera, mờ dần và tan ra
+  for(let i=0;i<exhausts.length;i++){
+    const p=exhausts[i];
+    if(p.life<=0)continue;
+    p.life-=dt;
+    if(p.life<=0){p.s.visible=false;p.s.material.opacity=0;continue;}
+    const q=p.s.position;
+    q.x+=p.vx*dt;q.y+=p.vy*dt;q.z+=p.vz*dt;
+    p.vx*=1-1.6*dt;p.vy-=1.2*dt;p.vz*=1-.7*dt;
+    const lk=p.life/p.max;
+    p.s.material.opacity=.85*lk*lk;
+    const sc=p.base+(1-lk)*.4;
+    p.s.scale.set(sc,sc,1);
   }
 
   for(let i=0;i<parts.length;i++){
@@ -1040,42 +1232,68 @@ function frame(now){
     const runTilt=Math.max(-.3,Math.min(.3,vy*.012));
     const runBob=state==='play'&&py<=0?Math.abs(s)*.14:Math.sin(t*3)*.04;
 
-    // Pose bay: chân duỗi về sau, đầu ngẩng nhẹ, thân nghiêng theo vận tốc
-    const flyWave=Math.sin(t*2.6);
-    const flyLegL=-1.15+flyWave*.06,flyLegR=-1.05-flyWave*.06;
-    const flyArmL=-1.25+Math.sin(t*2.2)*.08,flyArmR=-1.25+Math.sin(t*2.2+1.2)*.08;
-    const flyHead=.18+Math.sin(t*1.8)*.03;
-    const flyTilt=-.12+Math.max(-.18,Math.min(.18,vy*.008));
-    const flyBob=.06+Math.sin(t*2.2)*.05;
+    // Pose bay phi hành gia: thân thẳng, hơi ngả tới, chân co về sau, tay dang giữ thăng bằng
+    const flyWave=Math.sin(t*2.4),flyWave2=Math.sin(t*1.6+1.2);
+    const flyLegL=-.62+flyWave*.14,flyLegR=-.48-flyWave*.14;
+    const flyArmL=-.55+Math.sin(t*2.1)*.12,flyArmR=-.55+Math.sin(t*2.1+1.4)*.12;
+    const flyHead=.2+Math.sin(t*1.7)*.05;
+    const flyTilt=-.02+Math.max(-.08,Math.min(.08,vy*.005));
+    const flyPitch=-.18+Math.max(-.08,Math.min(.08,vy*.005))+flyWave2*.018;
+    const flyBob=.10+Math.sin(t*2.4)*.06;
+    const flyBank=Math.sin(t*.8)*.09+Math.sin(t*1.9)*.022;
+    const flyYaw=Math.sin(t*.55)*.05;
+    const flyTailX=.12+Math.sin(t*2.4)*.06;
+    const flyTailY=Math.sin(t*2.2)*.26;
+    const flyTailZ=Math.sin(t*1.3)*.07;
 
     // Trộn mượt giữa chạy và bay
     legL.rotation.x=runLegL+(flyLegL-runLegL)*fb;
     legR.rotation.x=runLegR+(flyLegR-runLegR)*fb;
+    kneeL.rotation.x=(-.75+flyWave*.1)*fb;
+    kneeR.rotation.x=(-.6-flyWave*.1)*fb;
     armL.rotation.x=runArmL+(flyArmL-runArmL)*fb;
     armR.rotation.x=runArmR+(flyArmR-runArmR)*fb;
+    armL.rotation.z=.3*fb;armR.rotation.z=-.3*fb;
+    armL.rotation.y=.8*fb;armR.rotation.y=-.8*fb;
     headG.rotation.x=runHead+(flyHead-runHead)*fb;
+    headG.rotation.y=Math.sin(t*1.1)*.06*fb;
     dino.rotation.x=runTilt+(flyTilt-runTilt)*fb;
+    dino.rotation.z=Math.sin(t*.7)*.03*fb;
     bodyG.position.y=runBob+(flyBob-runBob)*fb;
-    bodyG.rotation.z=s*.06*k*(1-fb)+Math.sin(t*1.8)*.04*fb;
-    bodyG.rotation.y=s*.05*k*(1-fb)+Math.sin(t*1.4)*.035*fb;
-    tail.rotation.y=Math.sin(runT*.8+(state==='ready'?t*2:0))*.4*k*(1-fb)+Math.sin(t*2.2)*.18*fb;
-    tail.rotation.x=L(Math.sin(runT*2)*.06,-.35)*(1-fb)+(-.15+Math.sin(t*2.4)*.06)*fb;
+    bodyG.position.x=Math.sin(t*.9)*.05*fb;
+    bodyG.position.z=Math.sin(t*1.8)*.035*fb;
+    bodyG.rotation.x=flyPitch*fb;
+    bodyG.rotation.z=s*.06*k*(1-fb)+flyBank*fb;
+    bodyG.rotation.y=s*.05*k*(1-fb)+flyYaw*fb;
+    tail.rotation.y=Math.sin(runT*.8+(state==='ready'?t*2:0))*.4*k*(1-fb)+flyTailY*fb;
+    tail.rotation.x=L(Math.sin(runT*2)*.06,-.35)*(1-fb)+flyTailX*fb;
+    tail.rotation.z=flyTailZ*fb;
 
     const sq=(land/.18)*(1-fb),st=py>0?.08*Math.min(1,Math.abs(vy)/JUMP)*(1-fb):0;
     dino.scale.set(1+.1*sq-st*.5,1-.15*sq+st,1+.1*sq-st*.5);
-    dino.position.y=py+fb*(0.06+Math.sin(t*2.2)*0.05);
+    dino.position.y=py+fb*(0.18+Math.sin(t*2.4)*0.06);
 
-    // Jetpack phản lực
+    // Jetpack phản lực + khí xả
     if(fb>0.01){
       jetGroup.visible=true;
       jetGroup.position.y=Math.sin(t*9)*.02;
       const thrust=Math.max(.6,Math.min(1.8,1+vy*.1));
       const boost=(.85+Math.random()*.4)*thrust;
-      jetL.scale.set(1,boost,1);jetR.scale.set(1,boost,1);
-      jetL2.scale.set(1,(.75+Math.random()*.5)*thrust,1);jetR2.scale.set(1,(.75+Math.random()*.5)*thrust,1);
-      jetGlow.scale.set(1.4,1.1,1.6+Math.random()*.6+Math.max(0,vy)*.06);
+      jetL.scale.set(1.0,boost*.55,1.0);jetR.scale.set(1.0,boost*.55,1.0);
+      jetL2.scale.set(1,(.75+Math.random()*.5)*thrust*.55,1);jetR2.scale.set(1,(.75+Math.random()*.5)*thrust*.55,1);
+      jetL.rotation.z=Math.sin(t*19)*.05;jetR.rotation.z=-Math.sin(t*17+1)*.05;
+      jetGlow.scale.set(1.25,0.95,1.5+Math.random()*.5+Math.max(0,vy)*.05);
+      const ng=.9+Math.random()*.3;
+      nozzleGlowL.scale.set(1.05*ng,1.05*ng,1);nozzleGlowR.scale.set(1.05*ng,1.05*ng,1);
+      nozzleGlowL.material.opacity=.45+Math.random()*.25;nozzleGlowR.material.opacity=.45+Math.random()*.25;
+      jetLight.intensity=(1.1+Math.random()*.6)*fb;
+      exhaustAcc+=dt*(isMobile?34:64)*fb;
+      let guard=0;
+      while(exhaustAcc>=1&&guard<5){exhaustAcc-=1;spawnExhaust();guard++;}
     }else{
       jetGroup.visible=false;
+      jetLight.intensity=0;
+      exhaustAcc=0;
     }
   }
   const sh=1/(1+dino.position.y*.25);
@@ -1085,14 +1303,28 @@ function frame(now){
   // Camera
   const yawTarget=(state==='play'&&py>0)?.16:0;
   camYaw+=(yawTarget-camYaw)*Math.min(1,dt*4);
-  const cj=Math.abs(camYaw)/.16,ca=Math.cos(camYaw),sa=Math.sin(camYaw),dx=3.2,dz=11+sp*2.2;
-  // Vũ trụ: đổi góc quay (xa hơn, cao hơn, FOV rộng hơn) nhưng vẫn bám độ cao nhảy như mặt đất
-  cam.position.set(dx*ca+dz*sa,4.6+py*.3+cj*.3+sp*.9,-dx*sa+dz*ca);
+  const cj=Math.abs(camYaw)/.16;
+  // Màn hình dọc: đưa camera không gian về gần góc nhìn sau lưng như mặt đất
+  // để thấy vật cản từ xa; màn hình ngang/desktop vẫn giữ góc nghiêng điện ảnh.
+  const portrait=Math.max(0,Math.min(1,(1.0-cam.aspect)/0.5));
+  // Giảm cú xoay camera khi nhảy trên màn hình dọc để không đẩy vật cản ra mép
+  const yawSpace=camYaw*(1-.5*portrait*sp);
+  const ca=Math.cos(yawSpace),sa=Math.sin(yawSpace);
+  const spDx=lerpVal(7.4,3.3,portrait);
+  const spDz=lerpVal(7.0,10.4,portrait);
+  const spLookX=lerpVal(.45,.24,portrait);
+  const spLookZ=lerpVal(-1.9,-6.0,portrait);
+  const swayScale=1-.55*portrait;
+  const camSwayX=(Math.sin(t*.5)*.3+Math.sin(t*.23+1.7)*.15)*sp*swayScale;
+  const camSwayY=(Math.sin(t*.8+1.3)*.2+Math.sin(t*.31)*.1)*sp*swayScale;
+  const dx=lerpVal(3.2,spDx,sp),dz=lerpVal(11,spDz,sp);
+  cam.position.set(dx*ca+dz*sa+camSwayX,lerpVal(4.6+py*.3+cj*.3,3.4+py*.55+cj*.12,sp)+camSwayY,-dx*sa+dz*ca);
   if(shake>0){shake-=dt;cam.position.x+=(Math.random()-.5)*shake*1.5;cam.position.y+=(Math.random()-.5)*shake;}
-  cam.lookAt(-.3*(1-cj*.3),1.9+py*.3+sp*.8,-6*(1-cj*.3));
-  cam.rotateZ(camYaw*.06);
+  cam.lookAt(lerpVal(-.3*(1-cj*.3),spLookX,sp),lerpVal(1.9+py*.3,2.2+py*.7,sp),lerpVal(-6*(1-cj*.3),spLookZ,sp));
+  cam.rotateZ(camYaw*.06+(Math.sin(t*.45)*.022+Math.sin(t*1.9)*.008)*sp*swayScale);
   punch=Math.max(0,punch-dt*2.5);
-  const f=baseFov+cj*2-punch*7+sp*4;if(Math.abs(cam.fov-f)>.05){cam.fov=f;cam.updateProjectionMatrix();}
+  const fovSpace=4.5+portrait*2.5;
+  const f=baseFov+cj*2-punch*7+sp*(fovSpace+Math.sin(t*.8)*.7);if(Math.abs(cam.fov-f)>.05){cam.fov=f;cam.updateProjectionMatrix();}
   renderer.render(scene,cam);
 }
 requestAnimationFrame(frame);
